@@ -9,6 +9,7 @@ Node.js >= v14.13.0
 
 ## Install
 
+From the project's root directory:
 ```console
 $ npm i
 ```
@@ -48,8 +49,8 @@ export DNG_SERVER=https://jazz.xyz.org
 export DNG_USER=user
 export DNG_PASS=pass
 export MMS_SERVER=https://mms.xyz.org
-export DNG_USER=user
-export DNG_PASS=pass
+export MMS_USER=user
+export MMS_PASS=pass
 ```
 
 Then, simply `$ source .env` before running the CLI.
