@@ -1,0 +1,40 @@
+{
+  "name": "dng-mdk",
+  "version": "1.0.0",
+  "description": "Doors NG Model Development Kit",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Open-MBEE/doors-ng-mdk.git"
+  },
+  "bin": {
+    "dng-mdk": "./src/main/cli.mjs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": {
+    "name": "Blake Regalia",
+    "email": "blake.regalia@gmail.com"
+  },
+  "engines": {
+    "node": ">= 14.13.0"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@graphy/content.trig.write": "^4.3.3",
+    "@graphy/content.ttl.read": "^4.3.3",
+    "@graphy/content.ttl.scribe": "^4.3.3",
+    "@graphy/content.ttl.write": "^4.3.3",
+    "@graphy/core.data.factory": "^4.3.3",
+    "@graphy/memory.dataset.fast": "^4.3.3",
+    "chalk": "^4.1.0",
+    "cli-select": "^1.1.2",
+    "cookie-manager": "0.0.19",
+    "dirname-filename-esm": "^1.0.2",
+    "jsonld-streaming-parser": "^2.1.1",
+    "pino": "^6.7.0",
+    "rdfxml-streaming-parser": "^1.4.0",
+    "yargs": "^16.1.0"
+  }
+}
