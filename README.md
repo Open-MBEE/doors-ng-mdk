@@ -1,4 +1,4 @@
-# dng-export
+# dng-mdk
 
 This CLI tool allows you to export all the requirements from a Doors NG project into a self-contained RDF file. This tool also provides a command that will subsequently convert that exported project into a SysML model which can be uploaded to MMS.
 

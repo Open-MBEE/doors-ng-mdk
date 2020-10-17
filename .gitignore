@@ -1,5 +1,6 @@
 .DS_Store
 .env
+*.ignore
 node_modules
 build
 data
