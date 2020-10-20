@@ -126,7 +126,15 @@ class Crawler {
 	}
 
 	async spawn(sr_spawn, n_depth_max=Infinity, n_depth_cur=0, b_retry=false) {
-		const d_url = new URL(sr_spawn, this._p_origin);
+		let d_url;
+		try {
+			d_url = new URL(sr_spawn, this._p_origin);
+		}
+		// invalid URL
+		catch(e_parse) {
+			console.warn(cherr.yellow(`skipping invalid URL: ${sr_spawn}`));
+			return;
+		}
 
 		// IRI without fragment
 		const p_url = d_url.toString().replace(/#.*$/, '');
