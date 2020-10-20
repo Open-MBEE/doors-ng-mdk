@@ -31,6 +31,7 @@ const A_NETWORK_RETRY_ERROR_CODES = [
 ];
 
 const P_DCT_TITLE = factory.c1('dct:title', H_PREFIXES).value;
+const P_OSLC_INSTANCE_SHAPE = factory.c1('oslc:instanceShape', H_PREFIXES).value;
 
 const KT_RDF_TYPE = c1('a');
 const KT_IBM_FOLDER = c1('ibm_public:Folder', H_PREFIXES);
@@ -226,6 +227,7 @@ class Crawler {
 
 		// set of links to traverse
 		const as_links = new Set();
+		const as_must = new Set();
 
 		// 
 		const p_dng_prop_custom = this._p_dng_prop_custom;
@@ -238,8 +240,16 @@ class Crawler {
 			// crawl incoming nodes
 			this._handle_node_in('subject', kt_quad, as_links, h_remap);
 
+			// ref predicate
+			const p_predicate = kt_quad.predicate.value;
+
 			// crawl predicate of requirement
-			as_links.add(kt_quad.predicate.value);
+			as_links.add(p_predicate);
+
+			// must crawl object
+			if(P_OSLC_INSTANCE_SHAPE === p_predicate) {
+				this._handle_node_in('object', kt_quad, as_must, h_remap);
+			}
 
 			// crawl outgoing nodes
 			this._handle_node_in('object', kt_quad, as_links, h_remap);
@@ -267,6 +277,12 @@ class Crawler {
 		// traverse links
 		if(n_depth_cur < n_depth_max) {
 			await Promise.all(Array.from(as_links).map((p_link) => {
+				return this.spawn(p_link, n_depth_max, n_depth_cur+1);
+			}));
+		}
+		// stopped, proceed with musts
+		else {
+			await Promise.all(Array.from(as_must).map((p_link) => {
 				return this.spawn(p_link, n_depth_max, n_depth_cur+1);
 			}));
 		}

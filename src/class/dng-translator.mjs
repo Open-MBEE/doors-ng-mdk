@@ -256,8 +256,16 @@ export class DngTranslator {
 			_f_c1p: c1p,
 		} = this;
 
+		let d_thing;
+		try {
+			d_thing = new URL(p_thing);
+		}
+		catch(e_parse) {
+			return null;
+		}
+
 		// remote IRI
-		if(this._p_origin !== (new URL(p_thing)).origin) {
+		if(this._p_origin !== d_thing.origin) {
 			// attempt to compress
 			const sc1_thing = namedNode(p_thing).concise(h_prefixes);
 			if('>' !== sc1_thing[0]) return sc1_thing;
