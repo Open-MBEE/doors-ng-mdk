@@ -71,6 +71,7 @@ export class DngTranslator {
 		({
 			prefixes: this._h_prefixes,
 			project: this._si_project,
+			label: this._s_project_label,
 			dataset: this._kd_project,
 			output: this._ds_out,
 		} = gc_translator);

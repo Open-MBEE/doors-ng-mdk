@@ -45,6 +45,7 @@ export async function dng_translate(gc_translate) {
 	const k_translator = new MmsUmlJsonTranslator({
 		server: gc_translate.server,
 		project: gc_translate.project,
+		label: gc_translate.label,
 		prefixes: h_prefixes,
 		dataset: kd_project,
 		output: gc_translate.adds,

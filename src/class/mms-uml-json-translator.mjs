@@ -52,7 +52,7 @@ export class MmsUmlJsonTranslator extends DngTranslator {
 		const k_factory = this._k_factory = new ElementFactory(si_project, this._p_origin);
 
 		// write root project element
-		const sj_root = k_factory.create_class(si_project+'_pm', si_project).dump()
+		const sj_root = k_factory.create_class(si_project+'_pm', this._s_project_label).dump()
 			.map(g => JSON.stringify(g, null, '\t')).join(',\n');
 
 		this._ds_out.write(/* syntax: json */ `{"elements":[\n${sj_root}`);

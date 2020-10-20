@@ -33,6 +33,9 @@ process.on('unhandledRejection', (e_fatal) => {
 // cwd
 const pd_root = process.cwd();
 
+// ref env
+const H_ENV = process.env;
+
 // headers for json exchange
 const H_HEADERS_JSON = {
 	'Accept': 'application/json',
@@ -101,7 +104,7 @@ const upload = (z_input, p_url, gc_request) => new Promise((fk_resolve, fe_rejec
 		}
 		// bad
 		else {
-			return fe_reject(new Error(`Unexpected response status ${n_status} from <${p_url}> '${ds_res.statusMessage}'; response body: '''\n${s_body}\n'''`));
+			return fe_reject(new Error(`Unexpected response status ${n_status} from <${p_url}> '${ds_res.statusMessage}'; response body: '''\n${s_body}\n'''. Request metadata: ${JSON.stringify(gc_request, null, '\t')}`));
 		}
 	});
 
@@ -178,7 +181,7 @@ yargs(hideBin(process.argv))
 			const [pd_project] = project_dir(g_argv.mopid);
 
 			// dng server
-			const p_server_dng = process.env.DNG_SERVER;
+			const p_server_dng = H_ENV.DNG_SERVER;
 			if(!p_server_dng) {
 				throw new Error(`Must provide a DNG server URL via env var 'DNG_SERVER'`);
 			}
@@ -266,7 +269,7 @@ yargs(hideBin(process.argv))
 			const [pd_project, si_mms_project] = project_dir(g_argv.mopid);
 
 			// dng server
-			const p_server_dng = process.env.DNG_SERVER;
+			const p_server_dng = H_ENV.DNG_SERVER;
 			if(!p_server_dng) {
 				throw new Error(`Must provide a DNG server URL via env var 'DNG_SERVER'`);
 			}
@@ -301,6 +304,12 @@ yargs(hideBin(process.argv))
 				fs.unlinkSync(SR_MMS_DELETE);
 			}
 
+			// read project label
+			let s_project_label = si_mms_project;
+			if(file_exists(SR_PROJECT_LABEL)) {
+				s_project_label = fs.readFileSync(SR_PROJECT_LABEL, 'utf8');
+			}
+
 			// produce delta
 			if(file_exists(SR_CACHED) && !g_argv.force) {
 				const {
@@ -310,6 +319,7 @@ yargs(hideBin(process.argv))
 					...g_argv,
 					server: p_server_dng,
 					project: si_mms_project,
+					label: s_project_label,
 					exported: ds_exported,
 					cached: fs.createReadStream(SR_CACHED),
 					adds: ds_mms_add,
@@ -342,6 +352,7 @@ yargs(hideBin(process.argv))
 					...g_argv,
 					server: p_server_dng,
 					project: si_mms_project,
+					label: s_project_label,
 					exported: ds_exported,
 					adds: ds_mms_add,
 				});
@@ -371,14 +382,13 @@ yargs(hideBin(process.argv))
 			const [pd_project, si_mms_project, si_mms_org] = project_dir(g_argv.mopid);
 
 			// mms server
-			const H_ENV = process.env;
 			if(!H_ENV.MMS_SERVER) {
 				throw new Error(`Must provide an MMS server URL via env var 'MMS_SERVER'`);
 			}
 			if(!H_ENV.MMS_USER || !H_ENV.MMS_PASS) {
 				throw new Error(`Must provide MMS user and pass via env vars 'MMS_USER', 'MMS_PASS'`);
 			}
-			const p_server_mms = (new URL(process.env.MMS_SERVER)).origin;
+			const p_server_mms = (new URL(H_ENV.MMS_SERVER)).origin;
 
 			// pushd
 			process.chdir(pd_project);
@@ -516,7 +526,10 @@ yargs(hideBin(process.argv))
 						returnListOfNewCompartments: true,
 					}), `${p_server}/mms-repository.update`, {
 						method: 'POST',
-						headers: H_HEADERS_JSON,
+						headers: {
+							...H_HEADERS_JSON,
+							'Authorization': `Basic ${Buffer.from(H_ENV.MMS_USER+':'+H_ENV.MMS_PASS).toString('base64')}`,
+						},
 					});
 
 					// select compartment URI

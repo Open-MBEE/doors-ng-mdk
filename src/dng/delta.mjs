@@ -78,6 +78,7 @@ export async function dng_delta(gc_delta) {
 	const k_translator = new MmsUmlJsonTranslator({
 		server: gc_delta.server,
 		project: gc_delta.project,
+		label: gc_delta.label,
 		prefixes: h_prefixes,
 		dataset: kd_exported,
 		output: gc_delta.adds,
