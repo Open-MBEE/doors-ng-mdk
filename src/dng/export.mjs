@@ -11,6 +11,7 @@ const logger = pino(pino.destination({dest:2, sync:false}));
 
 import SimpleOslcClient from '../class/oslc-client.mjs';
 import AsyncLockPool from '../util/async-lock-pool.mjs';
+import dng_folder from './folder.mjs';
 import H_PREFIXES from '../common/prefixes.mjs';
 import {
 	SkipError,
@@ -444,11 +445,24 @@ export const dng_export = async(gc_export) => {
 		if(gc_export.useFolders) {
 			const as_visited = new Set();
 
+			// recursively gather requirments using folder workaround
 			await (async function recurse(p_folder, a_path=[]) {
 				if(as_visited.has(p_folder)) return;
 				as_visited.add(p_folder);
 
-				console.warn(`recursing on /${a_path.map(s => s.replace(/\//g, '\\/')).join('/')} folder <${p_folder}>...`);
+				// folder path
+				const s_path = '/'+a_path.map(s => s.replace(/\//g, '\\/')).join('/');
+
+				// gather requirements
+				let c_discovered = 0;
+				const a_add = await dng_folder(y_client, si_project, p_folder, 50e3);
+				for(const p_requirement of a_add) {
+					if(!as_requirements.has(p_requirement)) {
+						as_requirements.add(p_requirement);
+						c_discovered += 1;
+					}
+				}
+				console.warn(`${c_discovered} new requirements discovered in ${s_path}`);
 
 				// fetch child folders
 				const kd_folder = await y_client.load(`${p_folder}?${new URLSearchParams({
@@ -458,32 +472,20 @@ export const dng_export = async(gc_export) => {
 				// select only children
 				const kd_subfolders = kd_folder.match(null, KT_IBM_NAV_PARENT, namedNode(p_folder));
 
+				// verbose
+				console.warn(`recursing on ${s_path} folder <${p_folder}>...`);
+
 				// each subfolder
 				for(const g_quad of kd_subfolders) {
-					// parse target URL
-					let d_target = new URL(p_query_project);
+					const kt_subfolder = g_quad.subject;
+					const p_subfolder = kt_subfolder.value;
 
-					// append search params
-					d_target.search = (new URLSearchParams({
-						...Object.fromEntries([...d_target.searchParams]),
-						'oslc.prefix': 'nav=<http://jazz.net/ns/rm/navigation#>',
-						'oslc.select': '*',
-						'oslc.where': `nav:parent=<${g_quad.subject.value}>`,
-					}))+'';
-
-					// load all artifacts contained by subfolder
-					const kd_subfolder = await y_client.load(d_target+'');
-
-					// select all requirements
-					const k_requirements = kd_subfolder.match(null, KT_RDF_TYPE, c1('oslc_rm:Requirement', h_prefixes));
-					for(const kt_req of k_requirements) {
-						as_requirements.add(kt_req.subject.value);
-					}
+					// fetch title
+					const as_titles = kd_folder._h_quad_tree['*'][kt_subfolder.concise()][SV1_DCT_TITLE];
+					let s_title = as_titles? c1([...as_titles][0]).value: '(unlabeled)';
 
 					// recurse
-					const as_titles = kd_folder._h_quad_tree['*'][g_quad.subject.concise()][SV1_DCT_TITLE];
-					let s_title = as_titles? c1([...as_titles][0]).value: '(unlabeled)';
-					await recurse(g_quad.subject.value, [...a_path, s_title]);
+					await recurse(p_subfolder, [...a_path, s_title]);
 				}
 			})(`${p_server}/rm/folders/${si_project}`);
 		}

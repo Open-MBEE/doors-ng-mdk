@@ -26,6 +26,7 @@
     "@graphy/content.ttl.read": "^4.3.3",
     "@graphy/content.ttl.scribe": "^4.3.3",
     "@graphy/content.ttl.write": "^4.3.3",
+    "@graphy/content.xml.scribe": "^4.3.3",
     "@graphy/core.data.factory": "^4.3.3",
     "@graphy/memory.dataset.fast": "^4.3.3",
     "chalk": "^4.1.0",

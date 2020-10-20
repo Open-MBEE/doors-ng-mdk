@@ -23,64 +23,6 @@ const {
 
 const KT_OSLC_RM_SERVICE_PROVIDERS = c1('oslc_rm_1:rmServiceProviders', H_PREFIXES);
 
-/**
-* Make an HTTPS request
-* @param {SimpleOslcClient} k_self - self instance object
-* @param {string} s_url - relative pathname or absolute URL to request
-* @param {hash} h_args - additional args to send to request call
-* @param {any} w_body - contents to write to request payload
-* @returns {Promise<http.ClientRequest>} - the request stream
-*/
-function SimpleOslcClient$request(k_self, s_url, h_args={}, w_body='') {
-	// async
-	return new Promise((fk_resolve, fe_reject) => {
-		// create URL (from relative if necessary)
-		const d_url = new url.URL(s_url, k_self._p_server);
-		const p_url = d_url.toString();
-
-		// create request descriptor
-		const h_req = {
-			method: 'GET',
-			...h_args,
-			headers: {
-				accept: 'text/html',
-				'oslc-core-version': '2.0',
-				...h_args.headers,
-				cookie: k_self._y_cookies.prepare(p_url),
-			},
-			agent: k_self._d_agent,
-		};
-
-		// verbose
-		if(k_self._b_verbose) {
-			console.warn(cherr.blue(`HTTP ${h_args.method || 'GET'} ${d_url.pathname}${d_url.search}; config:`));
-			const h_req_print = {...h_req};
-			delete h_req_print.agent;
-			console.warn(util.inspect(h_req_print, false, 1, true));
-		}
-
-		// submit fetch resource request
-		const ds_req = https.request(p_url, h_req, (ds_res) => {
-			// verbose
-			if(k_self._b_verbose) {
-				console.warn(cherr.yellow(`Received ${ds_res.statusCode} from endpoint w/ response headers:`));
-				console.warn('\t'+cherr.grey(JSON.stringify(ds_res.headers)));
-			}
-
-			// set custom property
-			ds_res.req.originalUrl = d_url;
-
-			// wants us to update cookie; do it
-			const a_cookie_set = ds_res.headers['set-cookie'];
-			if(a_cookie_set) k_self._y_cookies.store(p_url, a_cookie_set);
-
-			fk_resolve(ds_res);
-		}).on('error', fe_reject);
-
-		// close request
-		ds_req.end(w_body);
-	});
-}
 
 /**
 * Make an HTTPS request, and follow any redirects that arise
@@ -93,7 +35,7 @@ function SimpleOslcClient$request(k_self, s_url, h_args={}, w_body='') {
 */
 async function SimpleOslcClient$follow(k_self, s_url, w_args={}, w_body='', c_redirects=0) {
 	// submit request
-	const ds_res = await SimpleOslcClient$request(k_self, s_url, {
+	const ds_res = await k_self.request(s_url, {
 		...w_args,
 		headers: {
 			...(w_args.headers || {}),
@@ -181,6 +123,63 @@ export class SimpleOslcClient {
 	}
 
 	/**
+	* Issue an HTTPS request using the save coookie.
+	* @param {string} s_url - relative pathname or absolute URL to request
+	* @param {hash} h_args - additional args to send to request call
+	* @param {any} w_body - contents to write to request payload
+	* @returns {Promise<http.ClientRequest>} - the request stream
+	*/
+	request(s_url, h_args={}, w_body='') {
+		// async
+		return new Promise((fk_resolve, fe_reject) => {
+			// create URL (from relative if necessary)
+			const d_url = new url.URL(s_url, this._p_server);
+			const p_url = d_url.toString();
+
+			// create request descriptor
+			const h_req = {
+				method: 'GET',
+				...h_args,
+				headers: {
+					accept: 'text/html',
+					...h_args.headers,
+					cookie: this._y_cookies.prepare(p_url),
+				},
+				agent: this._d_agent,
+			};
+
+			// verbose
+			if(this._b_verbose) {
+				console.warn(cherr.blue(`HTTP ${h_args.method || 'GET'} ${d_url.pathname}${d_url.search}; config:`));
+				const h_req_print = {...h_req};
+				delete h_req_print.agent;
+				console.warn(util.inspect(h_req_print, false, 1, true));
+			}
+
+			// submit fetch resource request
+			const ds_req = https.request(p_url, h_req, (ds_res) => {
+				// verbose
+				if(this._b_verbose) {
+					console.warn(cherr.yellow(`Received ${ds_res.statusCode} from endpoint w/ response headers:`));
+					console.warn('\t'+cherr.grey(JSON.stringify(ds_res.headers)));
+				}
+
+				// set custom property
+				ds_res.req.originalUrl = d_url;
+
+				// wants us to update cookie; do it
+				const a_cookie_set = ds_res.headers['set-cookie'];
+				if(a_cookie_set) this._y_cookies.store(p_url, a_cookie_set);
+
+				fk_resolve(ds_res);
+			}).on('error', fe_reject);
+
+			// close request
+			ds_req.end(w_body);
+		});
+	}
+
+	/**
 	* Authenticate the client against by starting a session and obtaining the necessary cookie.
 	* @returns {Promise} - resolves once the session has started
 	*/
@@ -193,6 +192,7 @@ export class SimpleOslcClient {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/x-www-form-urlencoded',
+				'oslc-core-version': '2.0',
 			},
 		}, querystring.stringify({
 			j_username: this._s_username,
@@ -227,10 +227,13 @@ export class SimpleOslcClient {
 	* @returns {Promise<ReadableStream<RDFJS.Quad>>} - resolves once the
 	*   resource has started downloading; readable stream of quad objects
 	*/
-	async fetch(pr_resource) {
+	async fetch(pr_resource, h_args={}) {
 		const ds_res = await SimpleOslcClient$follow(this, pr_resource, {
+			...h_args,
 			headers: {
 				accept: 'application/rdf+xml, application/ld+json',
+				'oslc-core-version': '2.0',
+				...h_args.headers,
 			},
 		});
 
@@ -332,8 +335,8 @@ export class SimpleOslcClient {
 	* @returns {Promise<ReadableStream<RDFJS.Quad>>} - resolves once the
 	*   resource has been fully loaded into memory
 	*/
-	async load(pr_resource) {
-		const ds_parser = await this.fetch(pr_resource);
+	async load(pr_resource, h_args={}) {
+		const ds_parser = await this.fetch(pr_resource, h_args);
 
 		const k_dataset = FastDataset();
 		for await(const kt_quad of ds_parser) {

@@ -396,6 +396,7 @@ yargs(hideBin(process.argv))
 			const p_endpoint_elements = `${p_endpoint_project}/refs/${s_ref}/elements`;
 
 			// find out if project exists
+			console.warn(`GET <${p_endpoint_project}>...`);
 			const ds_res = await request(p_endpoint_project, {
 				method: 'GET',
 				headers: h_headers_mms,
