@@ -36,6 +36,7 @@ const P_OSLC_INSTANCE_SHAPE = factory.c1('oslc:instanceShape', H_PREFIXES).value
 const KT_RDF_TYPE = c1('a');
 const KT_IBM_FOLDER = c1('ibm_public:Folder', H_PREFIXES);
 const KT_IBM_NAV_PARENT = c1('ibm_nav:parent', H_PREFIXES);
+const KT_OLSC_CONFIG_COMPONENT = c1('oslc_config:component', H_PREFIXES);
 
 const c1v = sc1 => c1(sc1, H_PREFIXES).concise();
 
@@ -289,7 +290,81 @@ class Crawler {
 	}
 }
 
-export const dng_export = async(gc_export) => {
+export async function dng_project_info(gc_export) {
+	const p_server = (new URL(gc_export.server || process.env.DNG_SERVER)).origin;
+
+	// simple client
+	const k_client = new SimpleOslcClient();
+
+	// update prefixes
+	const h_prefixes = k_client._h_prefixes;
+
+	// authenticate
+	await k_client.authenticate();
+
+	// collect root services
+	const ds_root_services = await k_client.root_services();
+
+	// each root service
+	const h_projects = {};
+	for await(let p_service of ds_root_services) {
+		const ds_rm_service = await k_client.fetch(p_service);
+
+		// each quad
+		for await(let kq_service of ds_rm_service) {
+			// dct:title
+			if(P_DCT_TITLE === kq_service.predicate.value) {
+				h_projects[kq_service.object.value] = kq_service.subject.value;
+			}
+		}
+	}
+	// project query url
+	let s_name_project = gc_export.project;
+
+	// select project
+	const p_project = h_projects[s_name_project];
+	let si_project;
+
+	// fetch
+	const kd_project = await k_client.load(p_project);
+
+	// verbose
+	console.warn(`'${s_name_project}': <${p_project}>`);
+
+	// grab components
+	const as_components = new Set();
+	for(const kq_comp of kd_project.match(null, KT_OLSC_CONFIG_COMPONENT, null)) {
+		as_components.add(kq_comp.object.value);
+	}
+
+	// extract project id from URI
+	const h_prefixes_out = Object.assign({}, h_prefixes);
+	{
+		const m_project_id = /^(.+)\/rm\/oslc_rm\/([^/]+)\/services.xml$/.exec(p_project);
+		if(!m_project_id) {
+			throw new Error(`There was a problem while trying to parse the project id from the service URI <${p_project}>`);
+		}
+		else {
+			si_project = m_project_id[2];
+
+			Object.assign(h_prefixes_out, {
+				project_root: p_project.replace(/\/services.xml$/, '/'),
+				project_team_area: `${p_server}/rm/process/project-areas/${si_project}/team-areas/`,
+				project_component: `${p_server}/rm/cm/component/${si_project}/`,
+			});
+		}
+	}
+
+	return {
+		title: s_name_project,
+		id: si_project,
+		prefixes: h_prefixes_out,
+		components: as_components,
+		project: kd_project,
+	};
+}
+
+export async function dng_export(gc_export) {
 	const p_server = (new URL(gc_export.server)).origin;
 	const ds_out = gc_export.output;
 
@@ -307,108 +382,43 @@ export const dng_export = async(gc_export) => {
 		password: H_ENV.DNG_PASS,
 		sockets: n_socket_limit,
 		requests: n_concurrent_requests,
-		verbose: gc_export.verbose || H_ENV.DNG_EXPORT_DEBUG,
+		context: gc_export.context,
+		verbosity: gc_export.verbosity || H_ENV.DNG_EXPORT_DEBUG,
 	});
 
-
-	// update prefixes
-	const h_prefixes = y_client._h_prefixes;
 
 	// authenticate
 	await y_client.authenticate();
 
-	// create local dataset
-	const k_dataset_services = FastDataset({
+	// project info
+	const {
+		id: si_project,
 		prefixes: h_prefixes,
+		project: kd_project,
+	}= await dng_project_info({
+		...gc_export,
+		prefixes: y_client._h_prefixes,
 	});
 
-	// project query url
-	let s_name_project = gc_export.project;
-	let si_project;
 	let p_query_project;
 	let p_query_folder;
 	let ds_scribe;
 	SELECT_PROJECT: {
-		// collect root services
-		const ds_root_services = await y_client.root_services();
-
-		// each root service
-		const h_projects = {};
-		for await(let p_service of ds_root_services) {
-			const ds_rm_service = await y_client.fetch(p_service);
-
-			// each quad
-			for await(let kt_quad of ds_rm_service) {
-				// dct:title
-				if(P_DCT_TITLE === kt_quad.predicate.value) {
-					h_projects[kt_quad.object.value] = kt_quad.subject.value;
-				}
-
-				// add quad to dataset
-				k_dataset_services.add(kt_quad);
-			}
-		}
-
-		// project not provided; prompt cli select project
-		if(!s_name_project) {
-			s_name_project = await cli_select({
-				values: Object.keys(h_projects),
-				outputStream: process.stderr,
-			}).value;
-		}
-
-		// select project
-		const p_project = h_projects[s_name_project];
-
-		// fetch
-		const ds_project = await y_client.fetch(p_project);
-
-		// verbose
-		console.warn(`'${s_name_project}': <${p_project}>`);
-
-		// create local dataset
-		const k_dataset_project = FastDataset({
-			prefixes: h_prefixes,
-		});
-
-		// load dataset
-		for await(const kt_quad of ds_project) {
-			k_dataset_project.add(kt_quad);
-		}
-
-		// extract project id from URI
-		const h_prefixes_out = Object.assign({}, h_prefixes);
-		{
-			const m_project_id = /^(.+)\/rm\/oslc_rm\/([^/]+)\/services.xml$/.exec(p_project);
-			if(!m_project_id) {
-				throw new Error(`There was a problem while trying to parse the project id from the service URI <${p_project}>`);
-			}
-			else {
-				si_project = m_project_id[2];
-
-				Object.assign(h_prefixes_out, {
-					project_root: p_project.replace(/\/services.xml$/, '/'),
-					project_team_area: `${p_server}/rm/process/project-areas/${si_project}/team-areas/`,
-					project_component: `${p_server}/rm/cm/component/${si_project}/`,
-				});
-			}
-		}
-
 		// for writing rdf to stdout
 		ds_scribe = new TurtleWriter({
-			prefixes: h_prefixes_out,
+			prefixes: h_prefixes,
 		});
 
 		ds_scribe.pipe(ds_out);
 
 
 		// select query capabilities
-		const k_query_capabilities = k_dataset_project.match(null, KT_RDF_TYPE, c1('oslc:QueryCapability', h_prefixes));
+		const k_query_capabilities = kd_project.match(null, KT_RDF_TYPE, c1('oslc:QueryCapability', h_prefixes));
 
 		// each query capability
 		for await(const kt_quad of k_query_capabilities) {
 			// select resource types
-			const k_rtypes = k_dataset_project.match(kt_quad.subject, c1('oslc:resourceType', h_prefixes));
+			const k_rtypes = kd_project.match(kt_quad.subject, c1('oslc:resourceType', h_prefixes));
 
 			// prep requirements list
 			const a_requirements = [];
@@ -441,7 +451,7 @@ export const dng_export = async(gc_export) => {
 			if(a_requirements.length) {
 				// debugger;
 				const kt_capability = a_requirements[0];
-				const k_query_bases = k_dataset_project.match(kt_capability, c1('oslc:queryBase', h_prefixes), null);
+				const k_query_bases = kd_project.match(kt_capability, c1('oslc:queryBase', h_prefixes), null);
 
 				// get query base URL
 				for await(const kt_base of k_query_bases) {
@@ -452,7 +462,7 @@ export const dng_export = async(gc_export) => {
 			// folders capability
 			if(a_folders.length) {
 				const kt_capability = a_folders[0];
-				const k_query_bases = k_dataset_project.match(kt_capability, c1('oslc:queryBase', h_prefixes), null);
+				const k_query_bases = kd_project.match(kt_capability, c1('oslc:queryBase', h_prefixes), null);
 				// debugger;
 
 				// get query base URL
@@ -546,6 +556,6 @@ export const dng_export = async(gc_export) => {
 
 	// done
 	console.warn(`done`);
-};
+}
 
 export default dng_export;

@@ -14,9 +14,16 @@ import {hideBin} from 'yargs/helpers';
 import chalk from 'chalk';
 const cherr = chalk.stderr;
 
-import dng_export from '../dng/export.mjs';
+import {
+	dng_export,
+	dng_project_info,
+} from '../dng/export.mjs';
 import dng_translate from '../dng/translate.mjs';
 import dng_delta from '../dng/delta.mjs';
+import {
+	dng_update_baselines,
+	dng_export_baselines,
+} from '../dng/baselines.mjs';
 
 const SR_CACHED = './cached';
 const SR_EXPORTED = './exported';
@@ -73,39 +80,67 @@ const request = (p_url, gc_request) => new Promise((fk_resolve) => {
 	(https.request(p_url, gc_request, fk_resolve)).end();
 });
 
+const fetch = (p_url, gc_request, f_connected=null) => {
+	let ds_req;
+
+	const dp_exec = new Promise((fk_resolve, fe_reject) => {
+		ds_req = https.request(p_url, {
+			...gc_request,
+			headers: {
+				...gc_request.headers,
+				'Accept': 'application/json',
+			},
+		}, async(ds_res) => {
+			if(f_connected) {
+				[fk_resolve, fe_reject] = f_connected();
+			}
+
+			const n_status = ds_res.statusCode;
+
+			// download response body
+			let s_body = '';
+			for await(const s_chunk of ds_res) {
+				s_body += s_chunk;
+			}
+
+			// good
+			if(n_status >= 200 && n_status < 300) {
+				// parse
+				let g_json;
+				try {
+					g_json = JSON.parse(s_body);
+				}
+				catch(e_parse) {
+					return fe_reject(new Error(`Response body is not valid json: '''\n${s_body}\n'''`));
+				}
+
+				// resolve
+				return fk_resolve(g_json);
+			}
+			// bad
+			else {
+				return fe_reject(new Error(`Unexpected response status ${n_status} from <${p_url}> '${ds_res.statusMessage}'; response body: '''\n${s_body}\n'''. Request metadata: ${JSON.stringify(gc_request, null, '\t')}`));
+			}
+		});
+	});
+
+	if(f_connected) {
+		return ds_req;
+	}
+	else {
+		ds_req.end();
+		return dp_exec;
+	}
+};
+
 const upload = (z_input, p_url, gc_request) => new Promise((fk_resolve, fe_reject) => {
 	let dt_waiting;
 
 	// open request
-	const ds_upload = https.request(p_url, gc_request, async(ds_res) => {
+	const ds_upload = fetch(p_url, gc_request, () => {
 		clearInterval(dt_waiting);
 
-		const n_status = ds_res.statusCode;
-
-		// download response body
-		let s_body = '';
-		for await(const s_chunk of ds_res) {
-			s_body += s_chunk;
-		}
-
-		// good
-		if(n_status >= 200 && n_status < 300) {
-			// parse
-			let g_json;
-			try {
-				g_json = JSON.parse(s_body);
-			}
-			catch(e_parse) {
-				return fe_reject(new Error(`Response body is not valid json: '''\n${s_body}\n'''`));
-			}
-
-			// resolve
-			return fk_resolve(g_json);
-		}
-		// bad
-		else {
-			return fe_reject(new Error(`Unexpected response status ${n_status} from <${p_url}> '${ds_res.statusMessage}'; response body: '''\n${s_body}\n'''. Request metadata: ${JSON.stringify(gc_request, null, '\t')}`));
-		}
+		return [fk_resolve, fe_reject];
 	});
 
 	// submit payload
@@ -133,6 +168,15 @@ const upload = (z_input, p_url, gc_request) => new Promise((fk_resolve, fe_rejec
 	}
 });
 
+// common CLI options
+const H_OPT_MOPID = {
+	mopid: {
+		describe: 'org/project-id target for MMS project',
+		type: 'string',
+		demandOption: true,
+	},
+};
+
 // parse CLI args
 yargs(hideBin(process.argv))
 	.usage('dng-mdk <command>')
@@ -144,15 +188,11 @@ yargs(hideBin(process.argv))
 		builder: _yargs => _yargs
 			.usage('dng-mdk export --project <PROJECT_NAME> --mopid MMS_ORG_PROJECT_ID [OPTIONS]')
 			.options({
+				...H_OPT_MOPID,
 				project: {
 					describe: 'full name of the project on DNG',
 					demandOption: true,
 					type: 'string',
-				},
-				mopid: {
-					describe: 'org/project-id target for MMS project',
-					type: 'string',
-					demandOption: true,
 				},
 				sockets: {
 					describe: 'number of sockets to use',
@@ -170,7 +210,11 @@ yargs(hideBin(process.argv))
 					describe: 'delete older cache files',
 					type: 'boolean',
 				},
-				verbose: {
+				baselines: {
+					describe: `use the 'folders' workaround to fetch all artifacts for a large project`,
+					type: 'boolean',
+				},
+				verbosity: {
 					alias: 'v',
 					describe: 'verbosity of output; 1=some, 2=all',
 					type: 'number',
@@ -186,6 +230,11 @@ yargs(hideBin(process.argv))
 				throw new Error(`Must provide a DNG server URL via env var 'DNG_SERVER'`);
 			}
 
+			// dng creds
+			if(!H_ENV.DNG_USER || !H_ENV.DNG_PASS) {
+				throw new Error(`Missing one of or both required environment variables: 'DNG_USER', 'DNG_PASS`);
+			}
+
 			// mkdir -p ./data/{org}/{project}/
 			fs.mkdirSync(pd_project, {
 				recursive: true,
@@ -194,47 +243,77 @@ yargs(hideBin(process.argv))
 			// pushd
 			process.chdir(pd_project);
 
-			// previous cache file exists
-			if(file_exists(SR_CACHED)) {
-				// keep tidy; delete cached file
-				if(g_argv.tidy) {
-					const p_prev_cached_real = fs.readlinkSync(SR_CACHED);
-					fs.unlinkSync(p_prev_cached_real);
+			// export all other baselines
+			if(g_argv.baselines) {
+				// mkdir -p ./data/{org}/{project}/
+				fs.mkdirSync(path.join(pd_project, 'baselines'), {
+					recursive: true,
+				});
+
+				// prep export config
+				const gc_export = {
+					...g_argv,
+					server: p_server_dng,
+					project_dir: pd_project,
+				};
+
+				// project id
+				const g_project = await dng_project_info(gc_export);
+				Object.assign(gc_export, {
+					project_id: g_project.id,
+					components: g_project.components,
+				});
+
+				// update baselines
+				await dng_update_baselines(gc_export);
+
+				// run exports
+				await dng_export_baselines(gc_export);
+			}
+			// export default stream
+			else {
+				// previous cache file exists
+				if(file_exists(SR_CACHED)) {
+					// keep tidy; delete cached file
+					if(g_argv.tidy) {
+						const p_prev_cached_real = fs.readlinkSync(SR_CACHED);
+						fs.unlinkSync(p_prev_cached_real);
+					}
+
+					// delete cache symlink
+					fs.unlinkSync(SR_CACHED);
 				}
 
-				// delete cache symlink
-				fs.unlinkSync(SR_CACHED);
+				// previous exported file exists
+				if(file_exists(SR_EXPORTED)) {
+					// shift exported -> cached
+					const p_exported_real = fs.readlinkSync(SR_EXPORTED);
+					fs.symlinkSync(p_exported_real, path.basename(SR_CACHED));
+					fs.unlinkSync(SR_EXPORTED);
+				}
+
+				// no label, create one
+				if(!file_exists(SR_PROJECT_LABEL)) {
+					fs.writeFileSync(SR_PROJECT_LABEL, g_argv.project);
+				}
+
+				// popd
+				process.chdir(pd_root);
+
+				// output file name
+				const sr_export = (new Date()).toISOString().replace(/[^A-Z0-9-_.]/g, '-')+'.ttl';
+
+				// run export
+				await dng_export({
+					...g_argv,
+					server: p_server_dng,
+					output: fs.createWriteStream(path.join(pd_project, sr_export)),
+				});
+
+				// make symlink
+				process.chdir(pd_project);
+				fs.symlinkSync(sr_export, path.basename(SR_EXPORTED));
 			}
-
-			// previous exported file exists
-			if(file_exists(SR_EXPORTED)) {
-				// shift exported -> cached
-				const p_exported_real = fs.readlinkSync(SR_EXPORTED);
-				fs.symlinkSync(p_exported_real, path.basename(SR_CACHED));
-				fs.unlinkSync(SR_EXPORTED);
-			}
-
-			// no label, create one
-			if(!file_exists(SR_PROJECT_LABEL)) {
-				fs.writeFileSync(SR_PROJECT_LABEL, g_argv.project);
-			}
-
-			// popd
-			process.chdir(pd_root);
-
-			// output file name
-			const sr_export = (new Date()).toISOString().replace(/[^A-Z0-9-_.]/g, '-')+'.ttl';
-
-			// run export
-			await dng_export({
-				...g_argv,
-				server: p_server_dng,
-				output: fs.createWriteStream(path.join(pd_project, sr_export)),
-			});
-
-			// make symlink
-			process.chdir(pd_project);
-			fs.symlinkSync(sr_export, path.basename(SR_EXPORTED));
 		},
 	})
 
@@ -254,11 +333,7 @@ yargs(hideBin(process.argv))
 					describe: 'amount of memory to allocate for V8 instance in MiB',
 					type: 'number',
 				},
-				mopid: {
-					describe: 'org/project-id target for MMS project',
-					type: 'string',
-					demandOption: true,
-				},
+				...H_OPT_MOPID,
 				force: {
 					describe: `force produce the whole translation, i.e., don't compute delta`,
 					type: 'boolean',
@@ -367,11 +442,7 @@ yargs(hideBin(process.argv))
 		builder: _yargs => _yargs
 			.usage('dng-mdk upload --mopid MMS_ORG_PROJECT_ID [OPTIONS]')
 			.options({
-				mopid: {
-					describe: 'org/project-id target for MMS project',
-					type: 'string',
-					demandOption: true,
-				},
+				...H_OPT_MOPID,
 				reset: {
 					describe: 'completely reset the project on MMS',
 					type: 'boolean',
@@ -412,35 +483,14 @@ yargs(hideBin(process.argv))
 				headers: h_headers_mms,
 			});
 
+			// flag to create project
+			let b_create = false;
+
 			// not exist
 			if(404 === ds_res.statusCode) {
 				// create
 				console.warn(`${g_argv.mopid} does not yet exist on ${p_server_mms}; creating project...`);
-				console.time('create');
-
-				// read project label
-				let s_project_label = si_mms_project;
-				if(file_exists(SR_PROJECT_LABEL)) {
-					s_project_label = fs.readFileSync(SR_PROJECT_LABEL, 'utf8');
-				}
-
-				// prep payload
-				const s_payload = JSON.stringify({
-					projects: [{
-						type: 'Project',
-						orgId: si_mms_org,
-						id: si_mms_project,
-						name: s_project_label.trim().replace(/\s+/g, ' '),
-					}],
-				});
-
-				// create project
-				await upload(s_payload, `${p_endpoint_service}/orgs/${si_mms_org}/projects`, {
-					method: 'POST',
-					headers: h_headers_mms,
-				});
-
-				console.timeEnd('create');
+				b_create = true;
 			}
 			// reset
 			else if(g_argv.reset) {
@@ -467,6 +517,37 @@ yargs(hideBin(process.argv))
 				});
 
 				console.timeEnd('delete');
+
+				b_create = true;
+			}
+
+			// create project
+			if(b_create) {
+				console.time('create');
+
+				// read project label
+				let s_project_label = si_mms_project;
+				if(file_exists(SR_PROJECT_LABEL)) {
+					s_project_label = fs.readFileSync(SR_PROJECT_LABEL, 'utf8');
+				}
+
+				// prep payload
+				const s_payload = JSON.stringify({
+					projects: [{
+						type: 'Project',
+						orgId: si_mms_org,
+						id: si_mms_project,
+						name: s_project_label.trim().replace(/\s+/g, ' '),
+					}],
+				});
+
+				// create project
+				await upload(s_payload, `${p_endpoint_service}/orgs/${si_mms_org}/projects`, {
+					method: 'POST',
+					headers: h_headers_mms,
+				});
+
+				console.timeEnd('create');
 			}
 
 			// adds
@@ -496,11 +577,7 @@ yargs(hideBin(process.argv))
 		builder: _yargs => _yargs
 			.usage('dng-mdk trigger --job <JOB> --mopid MMS_ORG_PROJECT_ID [OPTIONS]')
 			.options({
-				mopid: {
-					describe: 'org/project-id target for MMS project',
-					type: 'string',
-					demandOption: true,
-				},
+				...H_OPT_MOPID,
 				job: {
 					describe: 'named job to run',
 					type: 'string',
@@ -521,20 +598,165 @@ yargs(hideBin(process.argv))
 
 			switch(s_job.toLowerCase()) {
 				case 'incquery': {
+					const h_headers_iqs = {
+						...H_HEADERS_JSON,
+						'Authorization': `Basic ${Buffer.from(H_ENV.MMS_USER+':'+H_ENV.MMS_PASS).toString('base64')}`,
+					};
+
+					console.warn(`refreshing repositories...`);
+
 					// refresh mms repos
-					const g_repos = await upload(JSON.stringify({
+					const g_update = await upload(JSON.stringify({
 						returnListOfNewCompartments: true,
-					}), `${p_server}/mms-repository.update`, {
+					}), `${p_server}/api/mms-repository.update`, {
 						method: 'POST',
-						headers: {
-							...H_HEADERS_JSON,
-							'Authorization': `Basic ${Buffer.from(H_ENV.MMS_USER+':'+H_ENV.MMS_PASS).toString('base64')}`,
-						},
+						headers: h_headers_iqs,
 					});
 
-					// select compartment URI
-					debugger;
+					// prep compartment start string
+					const s_compartment_start = `mms-index:/orgs/${si_mms_org}/projects/${si_mms_project}/refs/master/commits/`;
 
+					// list of commits
+					const a_commits = [];
+
+					// scan new model compartments
+					for(const p_compartment of g_update.newModelCompartments) {
+						// mopid match
+						if(p_compartment.startsWith(s_compartment_start)) {
+							a_commits.push(p_compartment);
+						}
+					}
+
+					// prep compartment IRI
+					let p_compartment;
+
+					// most recent compartment IRI is present
+					if(1 === a_commits.length) {
+						p_compartment = a_commits[0];
+					}
+					// need to fetch from list
+					else {
+						console.warn(`scanning commits...`);
+
+						const g_body = await fetch(`${p_server}/api/mms-repository.info?`+(new URLSearchParams({
+							returnAsListOfDescriptors: true,
+						})), {
+							method: 'GET',
+							headers: h_headers_iqs,
+						});
+
+						let g_most_recent = null;
+
+						COMMIT_SCAN:
+						// each org
+						for(const g_org of g_body.repositoryStructure.orgs) {
+							// matching org
+							if(si_mms_org === g_org.orgId) {
+								// each project
+								for(const g_project of g_org.projects) {
+									// matching project
+									if(si_mms_project === g_project.projectId) {
+										// each ref
+										for(const g_ref of g_project.refs) {
+											// matching ref
+											if('master' === g_ref.refId) {
+												// each commit
+												for(const g_commit of g_ref.commits) {
+													// parse commit datetime
+													const xt_commit = (new Date(g_commit.name)).getTime();
+
+													// most recent
+													if(!g_most_recent || xt_commit > g_commit.timestamp) {
+														g_most_recent = {
+															...g_commit,
+															timestamp: xt_commit,
+														};
+													}
+												}
+
+												// done scanning
+												break COMMIT_SCAN;
+											}
+										}
+									}
+								}
+							}
+						}
+
+						// nothing was found
+						if(!g_most_recent) throw new Error(`The requested org/project was not found on <${p_server}>`);
+
+						// set compartment IRI
+						p_compartment = `${s_compartment_start}${g_most_recent.commitId}`;
+					}
+
+					console.warn(`selected new compartment IRI: ${p_compartment}`);
+
+					// fetch existing persistent indexes
+					const g_body_pers = await fetch(`${p_server}/api/persistent-index.listModelCompartments`, {
+						method: 'GET',
+						headers: h_headers_iqs,
+					});
+
+					console.warn(`loading new compartment into persistent index...`);
+
+					// prep compartment URI payload
+					const s_payload = JSON.stringify({
+						compartmentURI: p_compartment,
+					});
+
+					// load persistent index
+					await upload(s_payload, `${p_server}/api/persistent-index.indexModelCompartment`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
+
+					console.warn(`loading new compartment into in-memory index...`);
+
+					// load in-memory index
+					await upload(s_payload, `${p_server}/api/inmemory-index.loadModelCompartment`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
+
+
+					console.warn(`loading new compartment into elastic-search index...`);
+
+					// load elastic-search index
+					await upload(s_payload, `${p_server}/api/elastic-search-integration.loadModelCompartment`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
+
+					console.warn(`loading new compartment into neptune index...`);
+
+					// load neptune index
+					await upload(JSON.stringify({
+						modelCompartment: {compartmentURI:p_compartment},
+						format: 'RDF_TURTLE',
+					}), `${p_server}/api/amazon-neptune-integration.loadModelCompartment`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
+
+					console.warn(`deleting old compartments...`);
+
+					// finally, delete all the old compartments
+					for(const p_compartment_old of g_body_pers.persistedModelCompartments) {
+						// mopid match
+						if(p_compartment_old.startsWith(s_compartment_start) && p_compartment !== p_compartment_old) {
+							// delete it
+							await upload(JSON.stringify({
+								modelCompartment: {compartmentURI:p_compartment_old},
+								indexes: ['persistent', 'inmemory', 'elasticSearch', 'neptune'],
+							}), `${p_server}/api/demo.deleteModelCompartment`, {
+								method: 'POST',
+								headers: h_headers_iqs,
+							});
+						}
+					}
+
+					console.warn('done');
 
 					break;
 				}

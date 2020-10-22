@@ -59,7 +59,7 @@ async function SimpleOslcClient$follow(k_self, s_url, w_args={}, w_body='', c_re
 		const p_redirect = ds_res.headers.location;
 
 		// verbose
-		if(k_self._b_verbose) {
+		if(k_self._xc_verbosity) {
 			const d_req = ds_res.req;
 			console.warn(`following redirect <${d_req.protocol}//${d_req.host}${d_req.path}> => <${p_redirect}>`);
 		}
@@ -76,21 +76,24 @@ async function SimpleOslcClient$follow(k_self, s_url, w_args={}, w_body='', c_re
 	}
 }
 
+const H_ENV = process.env;
+
 /**
 * A simple OSLC client that handles authentication, and fetching RDF resources.
 */
 export class SimpleOslcClient {
-	constructor(gc_client) {
-		const p_server = this._p_server = gc_client.server;
-		this._s_username = gc_client.username;
-		this._s_password = gc_client.password;
+	constructor(gc_client={}) {
+		const p_server = this._p_server = H_ENV.DNG_SERVER || gc_client.server;
+		this._s_username = H_ENV.DNG_USER || gc_client.username;
+		this._s_password = H_ENV.DNG_PASS || gc_client.password;
 		this._y_cookies = new CookieManager();
-		this._b_verbose = gc_client.verbose;
+		this._xc_verbosity = gc_client.verbosity || 0;
+		this._p_context = gc_client.context || null;
 		this._d_agent = new https.Agent({
 			keepAlive: true,
-			maxSockets: gc_client.sockets,
+			maxSockets: gc_client.sockets || 1,
 			// scheduling: 'lifo',
-			timeout: 12000,  // 12 seconds
+			timeout: gc_client.timeout || 12000,  // 12 seconds
 		});
 
 		// make prefix map
@@ -142,6 +145,9 @@ export class SimpleOslcClient {
 				...h_args,
 				headers: {
 					accept: 'text/html',
+					...(this._p_context
+						? {'X-OSLC-Configuration-Context': this._p_context}
+						: {}),
 					...h_args.headers,
 					cookie: this._y_cookies.prepare(p_url),
 				},
@@ -149,7 +155,7 @@ export class SimpleOslcClient {
 			};
 
 			// verbose
-			if(this._b_verbose) {
+			if(this._xc_verbosity) {
 				console.warn(cherr.blue(`HTTP ${h_args.method || 'GET'} ${d_url.pathname}${d_url.search}; config:`));
 				const h_req_print = {...h_req};
 				delete h_req_print.agent;
@@ -159,7 +165,7 @@ export class SimpleOslcClient {
 			// submit fetch resource request
 			const ds_req = https.request(p_url, h_req, (ds_res) => {
 				// verbose
-				if(this._b_verbose) {
+				if(this._xc_verbosity) {
 					console.warn(cherr.yellow(`Received ${ds_res.statusCode} from endpoint w/ response headers:`));
 					console.warn('\t'+cherr.grey(JSON.stringify(ds_res.headers)));
 				}
