@@ -102,16 +102,17 @@ export async function dng_delta(gc_delta) {
 	{
 		// prep output stream for DELETE elements
 		const ds_delete = gc_delta.deletes;
-		ds_delete.write(/* syntax: json */ `{"elements":[{"id":"__NO_OP__"}\n`);
+		ds_delete.write(/* syntax: json */ `{"elements":[`);
+		let i_element = 0;
 
 		// each distinct subject in deleted
-		const hv3_trips = kd_deleted._h_quad_tree['*'];
-		for(const sv1_subject in hv3_trips) {
+		const hv3_trips_deleted = kd_deleted._h_quad_tree['*'];
+		for(const sv1_subject in hv3_trips_deleted) {
 			// skip blank nodes
 			if('_' === sv1_subject[0]) continue;
 
 			// ref probs
-			const hv2_probs = hv3_trips_exported[sv1_subject];
+			const hv2_probs = hv3_trips_deleted[sv1_subject];
 
 			// requirement
 			if(hv2_probs[SV1_RDF_TYPE]?.has(SV1_OSLC_REQUIREMENT)) {
@@ -121,7 +122,7 @@ export async function dng_delta(gc_delta) {
 				const p_artifact = sv1_subject.slice(1);
 
 				// write to output
-				ds_delete.write(/* syntax: json */ `,\n{"id":"${k_translator.artifact_to_element_id(p_artifact)}"}`);
+				ds_delete.write((i_element++? ',': '')/* syntax: json */ `\n{"id":"${k_translator.artifact_to_element_id(p_artifact)}"}`);
 			}
 		}
 
@@ -140,7 +141,7 @@ export async function dng_delta(gc_delta) {
 			if('_' === sv1_subject[0]) continue;
 
 			// ref probs
-			const hv2_probs = hv3_trips_exported[sv1_subject];
+			const hv2_probs = hv3_trips_added[sv1_subject];
 
 			// requirement
 			if(hv2_probs[SV1_RDF_TYPE]?.has(SV1_OSLC_REQUIREMENT)) {

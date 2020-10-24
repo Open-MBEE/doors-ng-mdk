@@ -23,6 +23,7 @@ import dng_delta from '../dng/delta.mjs';
 import {
 	dng_update_baselines,
 	dng_export_baselines,
+	dng_baseline_migrations,
 } from '../dng/baselines.mjs';
 
 const SR_CACHED = './cached';
@@ -245,11 +246,6 @@ yargs(hideBin(process.argv))
 
 			// export all other baselines
 			if(g_argv.baselines) {
-				// mkdir -p ./data/{org}/{project}/
-				fs.mkdirSync(path.join(pd_project, 'baselines'), {
-					recursive: true,
-				});
-
 				// prep export config
 				const gc_export = {
 					...g_argv,
@@ -338,6 +334,10 @@ yargs(hideBin(process.argv))
 					describe: `force produce the whole translation, i.e., don't compute delta`,
 					type: 'boolean',
 				},
+				baselines: {
+					describe: 'translate all baselines',
+					type: 'boolean',
+				},
 			})
 			.help().version(false),
 		async handler(g_argv) {
@@ -355,6 +355,7 @@ yargs(hideBin(process.argv))
 				if(g_argv.target) a_args.push(...['--target', g_argv.target+'']);
 				if(g_argv.mopid) a_args.push(...['--mopid', g_argv.mopid+'']);
 				if(g_argv.force) a_args.push(...['--force']);
+				if(g_argv.baselines) a_args.push(...['--baselines']);
 				const u_sub = fork(filename(import.meta), ['translate', ...a_args], {
 					cwd: pd_root,
 					execArgv: ['--max-old-space-size='+g_argv.malloc],
@@ -368,69 +369,82 @@ yargs(hideBin(process.argv))
 			// pushd
 			process.chdir(pd_project);
 
-			// read exported file
-			const ds_exported = fs.createReadStream(SR_EXPORTED);
-
-			// prep add output
-			const ds_mms_add = fs.createWriteStream(SR_MMS_ADD);
-
-			// unlink 'delete' delta
-			if(file_exists(SR_MMS_DELETE)) {
-				fs.unlinkSync(SR_MMS_DELETE);
-			}
-
 			// read project label
 			let s_project_label = si_mms_project;
 			if(file_exists(SR_PROJECT_LABEL)) {
 				s_project_label = fs.readFileSync(SR_PROJECT_LABEL, 'utf8');
 			}
 
-			// produce delta
-			if(file_exists(SR_CACHED) && !g_argv.force) {
-				const {
-					added: a_added,
-					deleted: a_deleted,
-				} = await dng_delta({
+			// baselines
+			if(g_argv.baselines) {
+				await dng_baseline_migrations({
 					...g_argv,
 					server: p_server_dng,
 					project: si_mms_project,
 					label: s_project_label,
-					exported: ds_exported,
-					cached: fs.createReadStream(SR_CACHED),
-					adds: ds_mms_add,
-					deletes: fs.createWriteStream(SR_MMS_DELETE),
+					project_dir: pd_project,
 				});
+			}
+			// default stream
+			else {
+				// read exported file
+				const ds_exported = fs.createReadStream(SR_EXPORTED);
 
-				// something was deleted
-				if(a_deleted.length) {
-					console.info(`${a_deleted.length} artifacts were deleted`);
-				}
-				// nothing was deleted
-				else {
-					console.info(`nothing was deleted`);
+				// prep add output
+				const ds_mms_add = fs.createWriteStream(SR_MMS_ADD);
+
+				// unlink 'delete' delta
+				if(file_exists(SR_MMS_DELETE)) {
 					fs.unlinkSync(SR_MMS_DELETE);
 				}
 
-				// something was added
-				if(a_added.length) {
-					console.info(`${a_added.length} artifacts were added`);
+				// produce delta
+				if(file_exists(SR_CACHED) && !g_argv.force) {
+					const {
+						added: a_added,
+						deleted: a_deleted,
+					} = await dng_delta({
+						...g_argv,
+						server: p_server_dng,
+						project: si_mms_project,
+						label: s_project_label,
+						exported: ds_exported,
+						cached: fs.createReadStream(SR_CACHED),
+						adds: ds_mms_add,
+						deletes: fs.createWriteStream(SR_MMS_DELETE),
+					});
+
+					// something was deleted
+					if(a_deleted.length) {
+						console.info(`${a_deleted.length} artifacts were deleted`);
+					}
+					// nothing was deleted
+					else {
+						console.info(`nothing was deleted`);
+						fs.unlinkSync(SR_MMS_DELETE);
+					}
+
+					// something was added
+					if(a_added.length) {
+						console.info(`${a_added.length} artifacts were added`);
+					}
+					// nothing was added
+					else {
+						console.info(`nothing was added`);
+						fs.unlinkSync(SR_MMS_ADD);
+					}
 				}
-				// nothing was added
+				// do full translation
 				else {
-					console.info(`nothing was added`);
-					fs.unlinkSync(SR_MMS_ADD);
+					await dng_translate({
+						...g_argv,
+						server: p_server_dng,
+						project: si_mms_project,
+						label: s_project_label,
+						exported: ds_exported,
+						adds: ds_mms_add,
+					});
 				}
-			}
-			// do full translation
-			else {
-				await dng_translate({
-					...g_argv,
-					server: p_server_dng,
-					project: si_mms_project,
-					label: s_project_label,
-					exported: ds_exported,
-					adds: ds_mms_add,
-				});
 			}
 		},
 	})
@@ -637,6 +651,7 @@ yargs(hideBin(process.argv))
 					// need to fetch from list
 					else {
 						console.warn(`scanning commits...`);
+						console.time('scan');
 
 						const g_body = await fetch(`${p_server}/api/mms-repository.info?`+(new URLSearchParams({
 							returnAsListOfDescriptors: true,
@@ -690,7 +705,9 @@ yargs(hideBin(process.argv))
 						p_compartment = `${s_compartment_start}${g_most_recent.commitId}`;
 					}
 
+					console.timeEnd('scan');
 					console.warn(`selected new compartment IRI: ${p_compartment}`);
+					console.time('select');
 
 					// fetch existing persistent indexes
 					const g_body_pers = await fetch(`${p_server}/api/persistent-index.listModelCompartments`, {
@@ -698,7 +715,9 @@ yargs(hideBin(process.argv))
 						headers: h_headers_iqs,
 					});
 
+					console.timeEnd('select');
 					console.warn(`loading new compartment into persistent index...`);
+					console.time('persistent');
 
 					// prep compartment URI payload
 					const s_payload = JSON.stringify({
@@ -711,7 +730,9 @@ yargs(hideBin(process.argv))
 						headers: h_headers_iqs,
 					});
 
+					console.timeEnd('persistent');
 					console.warn(`loading new compartment into in-memory index...`);
+					console.time('in-memory');
 
 					// load in-memory index
 					await upload(s_payload, `${p_server}/api/inmemory-index.loadModelCompartment`, {
@@ -719,8 +740,9 @@ yargs(hideBin(process.argv))
 						headers: h_headers_iqs,
 					});
 
-
+					console.timeEnd('in-memory');
 					console.warn(`loading new compartment into elastic-search index...`);
+					console.time('elastic-search');
 
 					// load elastic-search index
 					await upload(s_payload, `${p_server}/api/elastic-search-integration.loadModelCompartment`, {
@@ -728,7 +750,9 @@ yargs(hideBin(process.argv))
 						headers: h_headers_iqs,
 					});
 
+					console.timeEnd('elastic-search');
 					console.warn(`loading new compartment into neptune index...`);
+					console.time('neptune');
 
 					// load neptune index
 					await upload(JSON.stringify({
@@ -739,7 +763,9 @@ yargs(hideBin(process.argv))
 						headers: h_headers_iqs,
 					});
 
+					console.timeEnd('neptune');
 					console.warn(`deleting old compartments...`);
+					console.time('delete');
 
 					// finally, delete all the old compartments
 					for(const p_compartment_old of g_body_pers.persistedModelCompartments) {
@@ -756,6 +782,7 @@ yargs(hideBin(process.argv))
 						}
 					}
 
+					console.timeEnd('delete');
 					console.warn('done');
 
 					break;

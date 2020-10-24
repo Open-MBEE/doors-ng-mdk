@@ -19,6 +19,9 @@ import {
 	dng_project_info,
 } from './export.mjs';
 
+import dng_translate from './translate.mjs';
+import dng_delta from './delta.mjs';
+
 const {
 	c1,
 } = DataFactory;
@@ -234,7 +237,11 @@ export async function dng_export_baselines(gc_export) {
 		map: h_baselines,
 	} = JSON.parse(fs.readFileSync(path.join(pd_project, 'baselines.json'), 'utf8'));
 
+	// use default stream
 	const a_history = Object.values(h_histories)[0];
+
+	// mkdir -p ./data/{org}/{project}/baselines
+	fs.mkdirSync(path.join(pd_project, 'baselines'), {recursive:true});
 
 	// download each baseline successively
 	for(const p_baseline of a_history) {
@@ -243,7 +250,59 @@ export async function dng_export_baselines(gc_export) {
 		await dng_export({
 			...gc_export,
 			context: p_baseline,
-			output: fs.createWriteStream(path.join(pd_project, 'baselines', g_baseline.id)),
+			output: fs.createWriteStream(path.join(pd_project, 'baselines', `${g_baseline.id}.ttl`)),
 		});
+	}
+}
+
+export async function dng_baseline_migrations(gc_export) {
+	const {
+		project: si_mms_project,
+		label: s_project_label,
+		project_dir: pd_project,
+	} = gc_export;
+
+	const {
+		histories: h_histories,
+		map: h_baselines,
+	} = JSON.parse(fs.readFileSync(path.join(pd_project, 'baselines.json'), 'utf8'));
+
+	// mkdir -p ./data/{org}/{project}/migrations
+	fs.mkdirSync(path.join(pd_project, 'migrations'), {recursive:true});
+
+	// use default stream
+	const a_history = Object.values(h_histories)[0];
+
+	// start at root
+	let g_previous = h_baselines[a_history[0]];
+
+	// translate initial
+	await dng_translate({
+		...gc_export,
+		project: si_mms_project,
+		label: s_project_label,
+		exported: fs.createReadStream(path.join(pd_project, 'baselines', g_previous.id)),
+		adds: fs.createWriteStream(path.join(pd_project, 'migrations', `null.${g_previous.id}.add.json`)),
+	});
+
+	// each subsequect baseline
+	for(let i_baseline=1, nl_baselines=a_history.length; i_baseline<nl_baselines; i_baseline++) {
+		const g_baseline = h_baselines[a_history[i_baseline]];
+
+		// compute delta
+		const {
+			added: a_added,
+			deleted: a_deleted,
+		} = await dng_delta({
+			...gc_export,
+			project: si_mms_project,
+			label: s_project_label,
+			exported: fs.createReadStream(path.join(pd_project, 'baselines', g_baseline.id)),
+			cached: fs.createReadStream(path.join(pd_project, 'baselines', g_previous.id)),
+			adds: fs.createWriteStream(path.join(pd_project, 'migrations', `${g_previous.id}.${g_baseline.id}.add.json`)),
+			deletes: fs.createWriteStream(path.join(pd_project, 'migrations', `${g_previous.id}.${g_baseline.id}.delete.json`)),
+		});
+
+		g_previous = g_baseline;
 	}
 }
