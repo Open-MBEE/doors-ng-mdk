@@ -403,6 +403,16 @@ yargs(hideBin(process.argv))
 			const p_endpoint_refs = `${p_endpoint_project}/refs`;
 			const p_endpoint_elements = `${p_endpoint_refs}/${s_ref}/elements`;
 
+			const gc_delete_mms = {
+				method: 'DELETE',
+				headers: h_headers_mms,
+			};
+
+			const gc_post_mms = {
+				method: 'POST',
+				headers: h_headers_mms,
+			};
+
 			// find out if project exists
 			console.warn(`GET <${p_endpoint_project}>...`);
 			const ds_res = await request(p_endpoint_project, {
@@ -425,10 +435,7 @@ yargs(hideBin(process.argv))
 				console.time('reset');
 
 				// submit request
-				await request(p_endpoint_project, {
-					method: 'DELETE',
-					headers: h_headers_mms,
-				});
+				await request(p_endpoint_project, gc_delete_mms);
 
 				console.timeEnd('reset');
 			}
@@ -438,10 +445,7 @@ yargs(hideBin(process.argv))
 				console.time('delete');
 
 				// submit request
-				await upload(fs.createReadStream(SR_MMS_DELETE), p_endpoint_elements, {
-					method: 'DELETE',
-					headers: h_headers_mms,
-				});
+				await upload(fs.createReadStream(SR_MMS_DELETE), p_endpoint_elements, gc_delete_mms);
 
 				console.timeEnd('delete');
 
@@ -469,10 +473,7 @@ yargs(hideBin(process.argv))
 				});
 
 				// create project
-				await upload(s_payload, `${p_endpoint_service}/orgs/${si_mms_org}/projects`, {
-					method: 'POST',
-					headers: h_headers_mms,
-				});
+				await upload(s_payload, `${p_endpoint_service}/orgs/${si_mms_org}/projects`, gc_post_mms);
 
 				console.timeEnd('create');
 			}
@@ -495,10 +496,7 @@ yargs(hideBin(process.argv))
 				// upload full initial baseline
 				{
 					const ds_initial = fs.createReadStream(path.join(pd_project, 'baselines', `mms-full.${g_initial.id}.json`));
-					await upload(ds_initial, p_endpoint_elements_add, {
-						method: 'POST',
-						headers: h_headers_mms,
-					});
+					await upload(ds_initial, p_endpoint_elements_add, gc_post_mms);
 				}
 
 				// create branch
@@ -518,21 +516,46 @@ yargs(hideBin(process.argv))
 							description: g_initial.description,
 							basedOnStream: g_initial.bos,
 						},
-					}), p_endpoint_refs, {
-						method: 'POST',
-						headers: h_headers_mms,
-					});
+					}), p_endpoint_refs, gc_post_mms);
 				}
+
+				let g_previous = g_initial;
 
 				// each following baseline
 				for(let i_baseline=1, nl_baselines=a_history.length; i_baseline<nl_baselines; i_baseline++) {
 					const g_baseline = h_baselines[a_history[i_baseline]];
 
-					// TODO: pickup here
-					const ds_add = fs.createReadStream(path.join(pd_project, 'migrations', `mms-add.${g_previous.id}.${g_basline.id}.json`));
-					await upload(ds_add, );
+					// delete elements
+					const ds_delete = fs.createReadStream(path.join(pd_project, 'migrations', `mms-delete.${g_previous.id}.${g_baseline.id}.json`));
+					await upload(ds_delete, p_endpoint_elements, gc_delete_mms);
+
+					// add elements
+					const ds_add = fs.createReadStream(path.join(pd_project, 'migrations', `mms-add.${g_previous.id}.${g_baseline.id}.json`));
+					await upload(ds_add, p_endpoint_elements, gc_post_mms);
+
+					// commit branch
+					await upload(JSON.stringify({
+						refs: {
+							id: `baseline.${g_baseline.id}`,
+							name: g_baseline.title,
+							parentRefId: 'master',
+							type: 'Branch',
+							uri: g_baseline.uri,
+							created: g_baseline.created,
+							creator: g_baseline.creator,
+							overrides: g_baseline.overrides,
+							previous: g_baseline.previous,
+							streams: g_baseline.streams,
+							description: g_baseline.description,
+							basedOnStream: g_baseline.bos,
+						},
+					}), p_endpoint_refs, gc_post_mms);
+
+					console.warn(`committed baseline ${g_baseline.id}: '${g_baseline.title}'`);
 				}
 
+				// all done
+				console.warn(`all done`);
 			}
 			// adds
 			else if(file_exists(SR_MMS_ADD)) {

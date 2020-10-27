@@ -256,10 +256,15 @@ export async function dng_export_baselines(gc_export) {
 	for(const p_baseline of a_history) {
 		const g_baseline = h_baselines[p_baseline];
 
+		const p_export = path.join(pd_project, 'baselines', `${g_baseline.id}.ttl`);
+
+		// export file already exists; skip
+		if(file_exists(p_export)) continue;
+
 		await dng_export({
 			...gc_export,
 			context: p_baseline,
-			output: fs.createWriteStream(path.join(pd_project, 'baselines', `${g_baseline.id}.ttl`)),
+			output: fs.createWriteStream(p_export),
 		});
 	}
 }
@@ -317,7 +322,7 @@ export async function dng_translate_baselines(gc_export) {
 		const g_baseline = h_baselines[p_baseline];
 
 		// destination path
-		const p_translated = fs.createWriteStream(path.join(pd_project, 'baselines', `mms-full.${g_baseline.id}.json`));
+		const p_translated = path.join(pd_project, 'baselines', `mms-full.${g_baseline.id}.json`);
 
 		// skip file already exists
 		if(file_exists(p_translated)) continue;
@@ -328,7 +333,7 @@ export async function dng_translate_baselines(gc_export) {
 			project: si_mms_project,
 			label: s_project_label,
 			exported: fs.createReadStream(path.join(pd_project, 'baselines', `${g_baseline.id}.ttl`)),
-			adds: p_translated,
+			adds: fs.createWriteStream(p_translated),
 			tolerant: true,
 		});
 	}
