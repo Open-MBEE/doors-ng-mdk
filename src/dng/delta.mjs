@@ -11,6 +11,10 @@ import {
 	MmsUmlJsonTranslator,
 } from '../class/mms-uml-json-translator.mjs';
 
+import {
+	dng_translate,
+} from './translate.mjs';
+
 import H_PREFIXES from '../common/prefixes.mjs';
 
 const {
@@ -37,6 +41,11 @@ const SV1_OSLC_REQUIREMENT = c1v('oslc_rm:Requirement');
 
 const SV1_OSLC_INSTANCE_SHAPE = c1v('oslc:instanceShape');
 
+export async function dng_delta_json(gc_delta) {
+	debugger;
+
+	
+}
 
 export async function dng_delta(gc_delta) {
 	let kd_cached = FastDataset();
@@ -156,6 +165,8 @@ export async function dng_delta(gc_delta) {
 
 	// close output
 	k_translator.end();
+
+	console.warn(`* ${a_deleted.length} elements deleted; ${a_added.length} elements added`);
 
 	return {
 		added: a_added,

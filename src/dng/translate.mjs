@@ -49,6 +49,7 @@ export async function dng_translate(gc_translate) {
 		prefixes: h_prefixes,
 		dataset: kd_project,
 		output: gc_translate.adds,
+		tolerant: gc_translate.tolerant,
 	});
 
 	// translate artifacts

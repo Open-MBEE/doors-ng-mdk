@@ -133,7 +133,16 @@ export class MmsUmlJsonTranslator extends DngTranslator {
 						return {
 							type: 'string',
 							values: a_objects
-								.map(sv1_object => first(this._hv3_trips[sv1_object][SV1_FOAF_NICK])),
+								.map((sv1_object) => {
+									// user is described in dataset
+									if(sv1_object in this._hv3_trips) {
+										return first(this._hv3_trips[sv1_object][SV1_FOAF_NICK]);
+									}
+									// for whatever reason, the user was not available/download; infer username from URI
+									else {
+										return /\/([^/]+)$/.exec(sv1_object)[1];
+									}
+								}),
 						};
 					}
 
@@ -162,7 +171,7 @@ export class MmsUmlJsonTranslator extends DngTranslator {
 		};
 	}
 
-	translate_artifacts() {
+	translate_artifacts(b_tolerant=this._b_tolerant) {
 		const {
 			_kd_project: kd_project,
 			_h_prefixes: h_prefixes,
@@ -181,7 +190,7 @@ export class MmsUmlJsonTranslator extends DngTranslator {
 			const p_requirement = kq_req.subject.value;
 
 			// translate it
-			this.translate_artifact(p_requirement);
+			this.translate_artifact(p_requirement, b_tolerant);
 		}
 	}
 
@@ -189,7 +198,7 @@ export class MmsUmlJsonTranslator extends DngTranslator {
 		return this._k_factory.uri_to_element(p_requirement);
 	}
 
-	translate_artifact(p_requirement) {
+	translate_artifact(p_requirement, b_tolerant=this._b_tolerant) {
 		const {
 			_h_prefixes: h_prefixes,
 			_f_c1p: c1p,
@@ -205,7 +214,25 @@ export class MmsUmlJsonTranslator extends DngTranslator {
 		{
 			// no shapes
 			if(!as_shapes) {
-				throw new Error(`artifact <${p_requirement}> has no OSLC instance shapes`);
+				if(b_tolerant) {
+					// prep element ID
+					const si_element_req = k_factory.uri_to_element(p_requirement);
+
+					// prep requirement title
+					const s_title_req = '(Phantom Artifact)';
+
+					// make artifact instance
+					const k_artifact = k_factory.create_class(si_element_req, s_title_req);
+
+					// serialize requirement
+					this._ds_out.write(',\n'+k_artifact.dump().map(w => JSON.stringify(w, null, '\t')).join(',\n'));
+
+					// do not continue
+					return;
+				}
+				else {
+					throw new Error(`artifact <${p_requirement}> has no OSLC instance shapes`);
+				}
 			}
 
 			// too many shapes

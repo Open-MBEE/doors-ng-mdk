@@ -1,5 +1,5 @@
 import https from 'https';
-import url from 'url';
+import {URL} from 'url';
 import querystring from 'querystring';
 import util from 'util';
 
@@ -20,6 +20,8 @@ import {
 const {
 	c1,
 } = factory;
+
+const SI_OSLC_CONFIG_CONTEXT = 'oslc_config.context';
 
 const KT_OSLC_RM_SERVICE_PROVIDERS = c1('oslc_rm_1:rmServiceProviders', H_PREFIXES);
 
@@ -79,6 +81,43 @@ async function SimpleOslcClient$follow(k_self, s_url, w_args={}, w_body='', c_re
 const H_ENV = process.env;
 
 /**
+* Remove the OSLC config context query parameter from resource URIs in quad
+* @param {Quad} kt_quad - the quad
+* @returns {Quad} new quad with context removed
+*/
+export function decontextualize_quad(kt_quad) {
+	let {
+		subject: kt_subject,
+		predicate: kt_predicate,
+		object: kt_object,
+	} = kt_quad;
+
+	if(kt_subject.isNamedNode) {
+		const d_url_subject = new URL(kt_subject.value);
+		if(d_url_subject.searchParams.has(SI_OSLC_CONFIG_CONTEXT)) {
+			d_url_subject.searchParams.delete(SI_OSLC_CONFIG_CONTEXT);
+			kt_subject = factory.namedNode(d_url_subject.toString());
+		}
+	}
+
+	const d_url_predicate = new URL(kt_predicate.value);
+	if(d_url_predicate.searchParams.has(SI_OSLC_CONFIG_CONTEXT)) {
+		d_url_predicate.searchParams.delete(SI_OSLC_CONFIG_CONTEXT);
+		kt_predicate = factory.namedNode(d_url_predicate.toString());
+	}
+
+	if(kt_object.isNamedNode) {
+		const d_url_object = new URL(kt_object.value);
+		if(d_url_object.searchParams.has(SI_OSLC_CONFIG_CONTEXT)) {
+			d_url_object.searchParams.delete(SI_OSLC_CONFIG_CONTEXT);
+			kt_object = factory.namedNode(d_url_object.toString());
+		}
+	}
+
+	return factory.quad(kt_subject, kt_predicate, kt_object);
+}
+
+/**
 * A simple OSLC client that handles authentication, and fetching RDF resources.
 */
 export class SimpleOslcClient {
@@ -95,6 +134,10 @@ export class SimpleOslcClient {
 			// scheduling: 'lifo',
 			timeout: gc_client.timeout || 12000,  // 12 seconds
 		});
+
+		if(this._p_context) {
+			this.load = this.load_decontextualize;
+		}
 
 		// make prefix map
 		this._h_prefixes = {
@@ -136,7 +179,14 @@ export class SimpleOslcClient {
 		// async
 		return new Promise((fk_resolve, fe_reject) => {
 			// create URL (from relative if necessary)
-			const d_url = new url.URL(s_url, this._p_server);
+			const d_url = new URL(s_url, this._p_server);
+
+			// add request parameter
+			if(this._p_context) {
+				d_url.searchParams.append(SI_OSLC_CONFIG_CONTEXT, this._p_context);
+			}
+
+			// convert to string
 			const p_url = d_url.toString();
 
 			// create request descriptor
@@ -145,9 +195,9 @@ export class SimpleOslcClient {
 				...h_args,
 				headers: {
 					accept: 'text/html',
-					...(this._p_context
-						? {'X-OSLC-Configuration-Context': this._p_context}
-						: {}),
+					// ...(this._p_context
+					// 	? {'X-OSLC-Configuration-Context': this._p_context}
+					// 	: {}),
 					...h_args.headers,
 					cookie: this._y_cookies.prepare(p_url),
 				},
@@ -347,6 +397,17 @@ export class SimpleOslcClient {
 		const k_dataset = FastDataset();
 		for await(const kt_quad of ds_parser) {
 			k_dataset.add(kt_quad);
+		}
+
+		return k_dataset;
+	}
+
+	async load_decontextualize(pr_resource, h_args={}) {
+		const ds_parser = await this.fetch(pr_resource, h_args);
+
+		const k_dataset = FastDataset();
+		for await(const kt_quad of ds_parser) {
+			k_dataset.add(decontextualize_quad(kt_quad));
 		}
 
 		return k_dataset;

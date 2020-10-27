@@ -15,6 +15,13 @@ import chalk from 'chalk';
 const cherr = chalk.stderr;
 
 import {
+	file_exists,
+	request,
+	fetch,
+	upload,
+} from '../util/io.mjs';
+
+import {
 	dng_export,
 	dng_project_info,
 } from '../dng/export.mjs';
@@ -23,7 +30,8 @@ import dng_delta from '../dng/delta.mjs';
 import {
 	dng_update_baselines,
 	dng_export_baselines,
-	dng_baseline_migrations,
+	dng_translate_baselines,
+	dng_migrate_baselines,
 } from '../dng/baselines.mjs';
 
 const SR_CACHED = './cached';
@@ -64,110 +72,6 @@ function project_dir(s_mms) {
 	return [path.join(pd_root, 'data', si_mms_org, si_mms_project), si_mms_project, si_mms_org];
 }
 
-// test if file exists
-function file_exists(p_file) {
-	// attempt to access file
-	try {
-		fs.accessSync(p_file, fs.constants.R_OK);
-	}
-	catch(e_access) {
-		return false;
-	}
-
-	return true;
-}
-
-const request = (p_url, gc_request) => new Promise((fk_resolve) => {
-	(https.request(p_url, gc_request, fk_resolve)).end();
-});
-
-const fetch = (p_url, gc_request, f_connected=null) => {
-	let ds_req;
-
-	const dp_exec = new Promise((fk_resolve, fe_reject) => {
-		ds_req = https.request(p_url, {
-			...gc_request,
-			headers: {
-				...gc_request.headers,
-				'Accept': 'application/json',
-			},
-		}, async(ds_res) => {
-			if(f_connected) {
-				[fk_resolve, fe_reject] = f_connected();
-			}
-
-			const n_status = ds_res.statusCode;
-
-			// download response body
-			let s_body = '';
-			for await(const s_chunk of ds_res) {
-				s_body += s_chunk;
-			}
-
-			// good
-			if(n_status >= 200 && n_status < 300) {
-				// parse
-				let g_json;
-				try {
-					g_json = JSON.parse(s_body);
-				}
-				catch(e_parse) {
-					return fe_reject(new Error(`Response body is not valid json: '''\n${s_body}\n'''`));
-				}
-
-				// resolve
-				return fk_resolve(g_json);
-			}
-			// bad
-			else {
-				return fe_reject(new Error(`Unexpected response status ${n_status} from <${p_url}> '${ds_res.statusMessage}'; response body: '''\n${s_body}\n'''. Request metadata: ${JSON.stringify(gc_request, null, '\t')}`));
-			}
-		});
-	});
-
-	if(f_connected) {
-		return ds_req;
-	}
-	else {
-		ds_req.end();
-		return dp_exec;
-	}
-};
-
-const upload = (z_input, p_url, gc_request) => new Promise((fk_resolve, fe_reject) => {
-	let dt_waiting;
-
-	// open request
-	const ds_upload = fetch(p_url, gc_request, () => {
-		clearInterval(dt_waiting);
-
-		return [fk_resolve, fe_reject];
-	});
-
-	// submit payload
-	if('string' === typeof z_input || z_input?.byteLength) {
-		ds_upload.end(z_input);
-	}
-	// stream
-	else {
-		stream.pipeline([
-			z_input,
-			ds_upload,
-		], (e_upload) => {
-			if(e_upload) {
-				fe_reject(e_upload);
-			}
-			else {
-				console.warn(`Payload successfully uploaded to <${p_url}>`);
-				const t_start = Date.now();
-				dt_waiting = setInterval(() => {
-					const xs_elapsed = Math.round((Date.now() - t_start) / 1000);
-					console.warn(`${Math.floor(xs_elapsed / 60)}m${((xs_elapsed % 60)+'').padStart(2, '0')}s have elapsed and still waiting...`);
-				}, 1000*60*5);  // every 5 minutes
-			}
-		});
-	}
-});
 
 // common CLI options
 const H_OPT_MOPID = {
@@ -377,13 +281,17 @@ yargs(hideBin(process.argv))
 
 			// baselines
 			if(g_argv.baselines) {
-				await dng_baseline_migrations({
+				const gc_descriptor = {
 					...g_argv,
 					server: p_server_dng,
 					project: si_mms_project,
 					label: s_project_label,
 					project_dir: pd_project,
-				});
+				};
+
+				await dng_translate_baselines(gc_descriptor);
+
+				await dng_migrate_baselines(gc_descriptor);
 			}
 			// default stream
 			else {
@@ -461,6 +369,10 @@ yargs(hideBin(process.argv))
 					describe: 'completely reset the project on MMS',
 					type: 'boolean',
 				},
+				baselines: {
+					describe: 'upload baselines',
+					type: 'boolean',
+				},
 			})
 			.help().version(false),
 		async handler(g_argv) {
@@ -488,7 +400,8 @@ yargs(hideBin(process.argv))
 
 			const p_endpoint_service = `${p_server_mms}/alfresco/service`;
 			const p_endpoint_project = `${p_endpoint_service}/projects/${si_mms_project}`;
-			const p_endpoint_elements = `${p_endpoint_project}/refs/${s_ref}/elements`;
+			const p_endpoint_refs = `${p_endpoint_project}/refs`;
+			const p_endpoint_elements = `${p_endpoint_refs}/${s_ref}/elements`;
 
 			// find out if project exists
 			console.warn(`GET <${p_endpoint_project}>...`);
@@ -564,12 +477,65 @@ yargs(hideBin(process.argv))
 				console.timeEnd('create');
 			}
 
-			// adds
-			if(file_exists(SR_MMS_ADD)) {
-				const p_endpoint_elements_add = `${p_endpoint_elements}?${new URLSearchParams({
-					overwrite: true,
-				})}`;
+			const p_endpoint_elements_add = `${p_endpoint_elements}?${new URLSearchParams({
+				overwrite: true,
+			})}`;
 
+			// init project baselines
+			if(g_argv.baselines) {
+				const {
+					histories: h_histories,
+					map: h_baselines,
+				} = JSON.parse(fs.readFileSync(path.join(pd_project, 'baselines.json'), 'utf8'));
+
+				// use default stream
+				const a_history = Object.values(h_histories)[0];
+				const g_initial = h_baselines[a_history[0]];
+
+				// upload full initial baseline
+				{
+					const ds_initial = fs.createReadStream(path.join(pd_project, 'baselines', `mms-full.${g_initial.id}.json`));
+					await upload(ds_initial, p_endpoint_elements_add, {
+						method: 'POST',
+						headers: h_headers_mms,
+					});
+				}
+
+				// create branch
+				{
+					await upload(JSON.stringify({
+						refs: {
+							id: `baseline.${g_initial.id}`,
+							name: g_initial.title,
+							parentRefId: 'master',
+							type: 'Branch',
+							uri: g_initial.uri,
+							created: g_initial.created,
+							creator: g_initial.creator,
+							overrides: g_initial.overrides,
+							previous: g_initial.previous,
+							streams: g_initial.streams,
+							description: g_initial.description,
+							basedOnStream: g_initial.bos,
+						},
+					}), p_endpoint_refs, {
+						method: 'POST',
+						headers: h_headers_mms,
+					});
+				}
+
+				// each following baseline
+				for(let i_baseline=1, nl_baselines=a_history.length; i_baseline<nl_baselines; i_baseline++) {
+					const g_baseline = h_baselines[a_history[i_baseline]];
+
+					// TODO: pickup here
+					const ds_add = fs.createReadStream(path.join(pd_project, 'migrations', `mms-add.${g_previous.id}.${g_basline.id}.json`));
+					await upload(ds_add, );
+				}
+
+			}
+			// adds
+			else if(file_exists(SR_MMS_ADD)) {
 				console.log(`POST ${SR_MMS_ADD} to ${p_endpoint_elements}...`);
 				console.time('add');
 
@@ -700,6 +666,8 @@ yargs(hideBin(process.argv))
 
 						// nothing was found
 						if(!g_most_recent) throw new Error(`The requested org/project was not found on <${p_server}>`);
+
+						console.warn(`selecting most recent: ${(new Date(g_most_recent.timestamp)).toISOString()}`);
 
 						// set compartment IRI
 						p_compartment = `${s_compartment_start}${g_most_recent.commitId}`;

@@ -9,7 +9,10 @@ import chalk from 'chalk';
 const cherr = chalk.stderr;
 const logger = pino(pino.destination({dest:2, sync:false}));
 
-import SimpleOslcClient from '../class/oslc-client.mjs';
+import {
+	SimpleOslcClient,
+	decontextualize_quad,
+} from '../class/oslc-client.mjs';
 import AsyncLockPool from '../util/async-lock-pool.mjs';
 import dng_folder from './folder.mjs';
 import H_PREFIXES from '../common/prefixes.mjs';
@@ -77,6 +80,11 @@ class Crawler {
 		this._k_pool = new AsyncLockPool(n_concurrent_requests);
 		this._p_dng_custom_type = `${this._p_origin}/rm/types/`;
 		this._h_prefixes_custom = {};
+
+		// prep decontextualizer if needed
+		this._f_decontextualize_quad = y_client._p_context
+			? decontextualize_quad
+			: kt => kt;
 	}
 
 	_handle_node_in(s_role, kt_quad, as_links, h_remap) {
@@ -128,6 +136,8 @@ class Crawler {
 	}
 
 	async spawn(sr_spawn, n_depth_max=Infinity, n_depth_cur=0, b_retry=false) {
+		const f_decontextualize_quad = this._f_decontextualize_quad;
+
 		let d_url;
 		try {
 			d_url = new URL(sr_spawn, this._p_origin);
@@ -256,7 +266,7 @@ class Crawler {
 			this._handle_node_in('object', kt_quad, as_links, h_remap);
 
 			// add (possibly mutated) quad to local dataset
-			k_dataset.add(kt_quad);
+			k_dataset.add(f_decontextualize_quad(kt_quad));
 		}
 
 		// now that stream has been consumed

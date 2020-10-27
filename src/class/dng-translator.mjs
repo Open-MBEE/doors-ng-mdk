@@ -79,6 +79,9 @@ export class DngTranslator {
 		// save origin
 		this._p_origin = (new URL(gc_translator.server)).origin;
 
+		// tolerant
+		this._b_tolerant = gc_translator.tolerant || false;
+
 		// save trips tree
 		this._hv3_trips = this._kd_project._h_quad_tree['*'];
 

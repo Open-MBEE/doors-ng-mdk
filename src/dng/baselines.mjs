@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import {once} from 'events';
 
 import chalk from 'chalk';
 const cherr = chalk.stderr;
@@ -13,6 +14,13 @@ import {
 	SkipError,
 	HttpError,
 } from '../common/errors.mjs';
+
+import {
+	file_exists,
+	request,
+	fetch,
+	upload,
+} from '../util/io.mjs';
 
 import {
 	dng_export,
@@ -37,6 +45,7 @@ const SV1_DCT_TITLE = c1v('dct:title');
 const SV1_DCT_CREATED = c1v('dct:created');
 const SV1_DCT_CREATOR = c1v('dct:creator');
 const SV1_DCT_IDENTIFIER = c1v('dct:identifier');
+const SV1_DCT_DESCRIPTION = c1v('dct:description');
 const SV1_OSLC_CONFIG_OVERRIDES = c1v('oslc_config:overrides');
 const SV1_OSLC_CONFIG_PREVIOUS_BASELINE = c1v('oslc_config:previousBaseline');
 const SV1_OSLC_CONFIG_BASELINE_OF_STREAM = c1v('oslc_config:baselineOfStream');
@@ -192,7 +201,7 @@ export async function dng_update_baselines(gc_update) {
 				overrides: sv1_overrides? c1(sv1_overrides, H_PREFIXES).value: null,
 				previous: sv1_previous? c1(sv1_previous, H_PREFIXES).value: null,
 				streams: firstv(SV1_OSLC_CONFIG_STREAMS),
-				description: firstv(SV1_DCT_CREATOR),
+				description: firstv(SV1_DCT_DESCRIPTION),
 				bos: firstv(SV1_OSLC_CONFIG_BASELINE_OF_STREAM),
 			};
 
@@ -207,7 +216,7 @@ export async function dng_update_baselines(gc_update) {
 				title: s_title_config,
 				created: firstv(SV1_DCT_CREATED),
 				creator: firstv(SV1_DCT_CREATOR),
-				description: firstv(SV1_DCT_CREATOR),
+				description: firstv(SV1_DCT_DESCRIPTION),
 			};
 			console.warn(cherr.green(`<${p_config}> Stream: ${s_title_config}`));
 			c_streams += 1;
@@ -255,7 +264,40 @@ export async function dng_export_baselines(gc_export) {
 	}
 }
 
-export async function dng_baseline_migrations(gc_export) {
+function compute_delta(h_a, h_b) {
+	const a_added = [];
+	const a_deleted = [];
+
+	// each key in a
+	for(const si_key in h_a) {
+		// key is also in b
+		if(si_key in h_b) {
+			// values differ; overwrite element
+			if(JSON.stringify(h_a[si_key]) !== JSON.stringify(h_b[si_key])) {
+				a_added.push(h_b[si_key]);
+			}
+
+			// delete from b
+			delete h_b[si_key];
+		}
+		// key is not in b; entry was deleted
+		else {
+			a_deleted.push(si_key);
+		}
+	}
+
+	// each remaining key in b
+	for(const si_key in h_b) {
+		a_added.push(h_b[si_key]);
+	}
+
+	return {
+		added: a_added,
+		deleted: a_deleted,
+	};
+}
+
+export async function dng_translate_baselines(gc_export) {
 	const {
 		project: si_mms_project,
 		label: s_project_label,
@@ -267,41 +309,107 @@ export async function dng_baseline_migrations(gc_export) {
 		map: h_baselines,
 	} = JSON.parse(fs.readFileSync(path.join(pd_project, 'baselines.json'), 'utf8'));
 
+	// use default stream
+	const a_history = Object.values(h_histories)[0];
+
+	// each baseline
+	for(const p_baseline of a_history) {
+		const g_baseline = h_baselines[p_baseline];
+
+		// destination path
+		const p_translated = fs.createWriteStream(path.join(pd_project, 'baselines', `mms-full.${g_baseline.id}.json`));
+
+		// skip file already exists
+		if(file_exists(p_translated)) continue;
+
+		// translate in full
+		await dng_translate({
+			...gc_export,
+			project: si_mms_project,
+			label: s_project_label,
+			exported: fs.createReadStream(path.join(pd_project, 'baselines', `${g_baseline.id}.ttl`)),
+			adds: p_translated,
+			tolerant: true,
+		});
+	}
+}
+
+export async function dng_migrate_baselines(gc_migrate) {
+	const {
+		project_dir: pd_project,
+	} = gc_migrate;
+
+	const {
+		histories: h_histories,
+		map: h_baselines,
+	} = JSON.parse(fs.readFileSync(path.join(pd_project, 'baselines.json'), 'utf8'));
+
+	const load_baseline_json = (sr_file) => {
+		const p_file = path.join(pd_project, 'baselines', sr_file);
+		const s_json = fs.readFileSync(p_file);
+		let a_elements;
+		try {
+			a_elements = JSON.parse(s_json).elements;
+		}
+		catch(e_parse) {
+			throw new Error(`Invalid JSON while attempting to migrate ${p_file}`);
+		}
+		const h_elements = {};
+		for(const g_element of a_elements) {
+			h_elements[g_element.id] = g_element;
+		}
+		return h_elements;
+	};
+
 	// mkdir -p ./data/{org}/{project}/migrations
 	fs.mkdirSync(path.join(pd_project, 'migrations'), {recursive:true});
 
 	// use default stream
 	const a_history = Object.values(h_histories)[0];
 
-	// start at root
 	let g_previous = h_baselines[a_history[0]];
+	let h_elements_old = load_baseline_json(`mms-full.${g_previous.id}.json`);
 
-	// translate initial
-	await dng_translate({
-		...gc_export,
-		project: si_mms_project,
-		label: s_project_label,
-		exported: fs.createReadStream(path.join(pd_project, 'baselines', g_previous.id)),
-		adds: fs.createWriteStream(path.join(pd_project, 'migrations', `null.${g_previous.id}.add.json`)),
-	});
-
-	// each subsequect baseline
+	// each baseline
 	for(let i_baseline=1, nl_baselines=a_history.length; i_baseline<nl_baselines; i_baseline++) {
 		const g_baseline = h_baselines[a_history[i_baseline]];
 
-		// compute delta
+		const h_elements_new = load_baseline_json(`mms-full.${g_baseline.id}.json`);
+
+		// diff jsons
 		const {
 			added: a_added,
 			deleted: a_deleted,
-		} = await dng_delta({
-			...gc_export,
-			project: si_mms_project,
-			label: s_project_label,
-			exported: fs.createReadStream(path.join(pd_project, 'baselines', g_baseline.id)),
-			cached: fs.createReadStream(path.join(pd_project, 'baselines', g_previous.id)),
-			adds: fs.createWriteStream(path.join(pd_project, 'migrations', `${g_previous.id}.${g_baseline.id}.add.json`)),
-			deletes: fs.createWriteStream(path.join(pd_project, 'migrations', `${g_previous.id}.${g_baseline.id}.delete.json`)),
-		});
+		} = compute_delta(h_elements_old, h_elements_new);
+
+		// re-assign old now in case GC wants to free up mem
+		h_elements_old = h_elements_new;
+
+		// delete json
+		{
+			const ds_delete = fs.createWriteStream(path.join(pd_project, 'migrations', `mms-delete.${g_previous.id}.${g_baseline.id}.json`));
+			ds_delete.write(/* syntax: json */ `{"elements":[`);
+			let i_element = 0;
+			for(const si_element of a_deleted) {
+				ds_delete.write((i_element++? ',': '')+/* syntax: json */ `\n{"id":"${si_element}"}`);
+			}
+			ds_delete.end(/* syntax: json */ `\n]}`);
+
+			await once(ds_delete, 'finish');
+		}
+
+		// add json
+		{
+			const ds_add = fs.createWriteStream(path.join(pd_project, 'migrations', `mms-add.${g_previous.id}.${g_baseline.id}.json`));
+			ds_add.write(/* syntax: json */ `{"elements":[`);
+			let i_element = 0;
+			for(const g_element of a_added) {
+				ds_add.write((i_element++? ',': '')+'\n'+JSON.stringify(g_element));
+			}
+			ds_add.end(/* syntax: json */ `\n]}`);
+
+			await once(ds_add, 'finish');
+		}
 
 		g_previous = g_baseline;
 	}
