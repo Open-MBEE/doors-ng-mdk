@@ -206,7 +206,7 @@ export class MmsProject {
 		h_elements_old = null;
 
 		// deletions
-		{
+		if(a_deleted.length) {
 			const ds_delete = new stream.PassThrough();
 			const dp_upload = upload(ds_delete, this._endpoint_elements(si_ref), this._gc_req_delete);
 
@@ -222,7 +222,7 @@ export class MmsProject {
 		}
 
 		// additions
-		{
+		if(a_added.length) {
 			const ds_add = new stream.PassThrough();
 			const dp_upload = upload(ds_add, this._endpoint_elements(si_ref), this._gc_req_post);
 
