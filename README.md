@@ -1,6 +1,6 @@
 # dng-mdk
 
-This CLI tool allows you to export all the requirements from a Doors NG project into a self-contained RDF file. This tool also provides a command that will subsequently convert that exported project into a SysML model which can be uploaded to MMS.
+This CLI tool allows you to export all the requirements from a Doors NG project and load them into MMS.
 
 All schema-related information about the project, such as the names and object-type/datatype ranges of custom properties, are handled appropriately when creating the SysML model. This ensures data quality and model consistency no matter what type of project is exported, as long as the data conforms to the OSLC vocabulary (for Doors NG, this will always be the case).
 
@@ -11,23 +11,28 @@ Node.js >= v14.13.0
 
 From the project's root directory:
 ```console
-$ npm i
+$ npm install
 ```
+
+To link the CLI, you can use:
+```console
+$ npm link
+```
+
+If running on a personal machine, it is suggested to [set your npm prefix](https://stackoverflow.com/a/23889603/14284216) so that the CLI is not linked globally.
 
 ## CLI
 
-For more info about a particular command, use `./dng-mdk COMMAND --help` .
+For more info about a particular command, use `dng-mdk COMMAND --help` .
 
-All commands require the cli option `--mopid`, which is for specifying the destination MMS Org and Project ID as such: `org/project-id`.
+All commands require the positional argument `MMS_ORG_PROJECT_ID`, which is for specifying the destination MMS Org and Project ID as such: `org/project-id`.
 
 ```console
-$ ./dng-mdk --help
 dng-mdk <command>
 
 Commands:
-  dng-mdk export            Export a project from DNG
-  dng-mdk translate         Translate an exported DNG project from RDF into another format
-  dng-mdk upload            Upload a project to MMS
+  dng-mdk sync <MMS_ORG_PROJECT_ID>     Sync a DNG project with MMS
+  dng-mdk trigger <MMS_ORG_PROJECT_ID>  Trigger a job
 
 Options:
   --version  Show version number                                       [boolean]
@@ -55,32 +60,12 @@ export MMS_PASS=pass
 
 Then, simply `$ source .env` before running the CLI.
 
+### Sync
 
-### Export
+This command will automatically create and update an MMS project based on a DNG project matching the provided project name. It will load baselines, compute deltas, commit tags, and update the latest master branch.
 
-Given a project, download all of its artifacts and the associated property definitions as RDF.
-
-The `./dng-mdk export` command will run the exporter and save the Turtle outuput under `data/`:
+Say we have a project on Doors NG entitled "Example Test", and we want to sync it with a project on MMS `test` under the `eg` org. We'll allocate 24 GiB of memory to ensure ample space for the program to compute deltas between model versions:
 ```console
-$ ./dng-mdk export --project 'Full DNG Project Name' --mopid {MMS_ORG}/{MMS_PROJECT_ID}
+$ dng-mdk sync eg/test --project 'Example Test' --malloc 24576 &> eg-test.log
 ```
 
-The file will be symlinked as `data/{MMS_ORG}/{MMS_PROJECT_ID}/exported` .
-
-
-### Translate
-
-Once an RDF snapshot has been exported from DNG, you can 'translate' the project to another format, which may or may not be a lossy transformation depending on the target.
-
-```console
-$ ./dng-mdk translate --target mms --mopid {MMS_ORG}/{MMS_PROJECT_ID}
-```
-
-
-## Upload
-
-Upload translated formats to their destinations.
-
-```console
-$ ./dng-mdk upload --mopid {MMS_ORG}/{MMS_PROJECT_ID}
-```
