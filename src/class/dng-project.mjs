@@ -1,5 +1,5 @@
 import {URL, URLSearchParams} from 'url';
-import {once} from 'stream';
+import {once} from 'events';
 import TurtleWriter from '@graphy/content.ttl.write';
 import factory from '@graphy/core.data.factory';
 import pino from 'pino';
