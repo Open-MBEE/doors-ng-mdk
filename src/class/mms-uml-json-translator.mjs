@@ -344,7 +344,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 					if((new URL(p_object_0)).pathname.startsWith('/rm/resources/')) {
 						k_artifact.add_array({
 							type: 'relation',
-							value: a_objects.map(sv1 => k_factory.uri_to_element(sv1.slice(1))),
+							values: a_objects.map(sv1 => k_factory.uri_to_element(sv1.slice(1))),
 						}, p_property, s_label_prop);
 					}
 					// skip non-RDF
