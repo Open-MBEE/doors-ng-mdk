@@ -93,12 +93,14 @@ async function baseline_json_path(k_dng, g_baseline, gc_action) {
 		// tmp rdf file
 		const p_export = `./baselines/${g_baseline.id}.ttl`;
 
-		// download dng project as RDF dataset to disk
-		await k_dng.export({
-			...gc_action,
-			dng_context: g_baseline.uri,
-			local_output: fs.createWriteStream(p_export),
-		});
+		if(!file_exists(p_export)) {
+			// download dng project as RDF dataset to disk
+			await k_dng.export({
+				...gc_action,
+				dng_context: g_baseline.uri,
+				local_output: fs.createWriteStream(p_export),
+			});
+		}
 
 		// translate dataset into MMS UML+JSON
 		await dng_translate({
@@ -250,7 +252,10 @@ y_yargs = y_yargs.command({
 			const g_baseline = h_baselines[p_baseline];
 
 			// baseline already exists in MMS; skip it
-			if(h_refs[`baseline.${g_baseline.id}`]) continue;
+			if(h_refs[`baseline.${g_baseline.id}`]) {
+				console.warn(`skipping baseline which already exists in MMS: '${g_baseline.id}'`);
+				continue;
+			}
 
 			// baseline has 'previous' dependency
 			if(g_baseline.previous) {
