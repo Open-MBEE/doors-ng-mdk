@@ -271,7 +271,7 @@ export class Class extends Element {
 			console.warn(cherr.yellow(`serializing experimental relation bag for ${s_key}`));
 
 			for(let i_value=0, nl_values=a_values_in.length; i_value<nl_values; i_value++) {
-				this._add_relation(s_key+'_'+i_value, s_label, a_values_in[i_value]);
+				this.add_relation(s_key+'_'+i_value, s_label, a_values_in[i_value]);
 			}
 
 			return this;
