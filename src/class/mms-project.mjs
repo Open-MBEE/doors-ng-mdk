@@ -26,7 +26,7 @@ const H_HEADERS_JSON = {
 };
 
 function remove_meta(h_obj) {
-	for(const si_key of h_obj) {
+	for(const si_key in h_obj) {
 		if('_' === si_key[0] && '_appliedStereotypeIds' !== si_key) {
 			delete h_obj[si_key];
 		}
