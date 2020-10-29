@@ -36,6 +36,8 @@ function remove_meta(h_obj) {
 			remove_meta(z_value);
 		}
 	}
+
+	return h_obj;
 }
 
 function list_to_hash_by_ids(a_in) {
@@ -44,6 +46,37 @@ function list_to_hash_by_ids(a_in) {
 		h_out[g_element.id] = remove_meta(g_element);
 	}
 	return h_out;
+}
+
+function canonicalize(z_a) {
+	if(Array.isArray(z_a)) {
+		// object nested
+		const w_0 = z_a[0];
+		if(w_0 && 'object' === typeof w_0) {
+			// canonicalize items
+			const a_items = z_a.map(w => canonicalize(w));
+
+			if(Array.isArray(w_0)) {
+				return a_items.sort();
+			}
+			else {
+				return a_items.sort((g_a, g_b) => g_a.id < g_b.id);
+			}
+		}
+
+		return z_a.sort();
+	}
+	else if('object' === typeof z_a && null !== z_a) {
+		const h_out = {};
+		const a_keys = Object.keys(z_a).sort();
+		for(const si_key of a_keys) {
+			h_out[si_key] = canonicalize(z_a[si_key]);
+		}
+		return h_out;
+	}
+	else {
+		return z_a;
+	}
 }
 
 function compute_delta(h_a, h_b) {
@@ -55,7 +88,7 @@ function compute_delta(h_a, h_b) {
 		// key is also in b
 		if(si_key in h_b) {
 			// values differ; overwrite element
-			if(JSON.stringify(h_a[si_key]) !== JSON.stringify(h_b[si_key])) {
+			if(JSON.stringify(canonicalize(h_a[si_key])) !== JSON.stringify(canonicalize(h_b[si_key]))) {
 				a_added.push(h_b[si_key]);
 			}
 
@@ -218,8 +251,8 @@ export class MmsProject {
 		// re-assign old now in case GC wants to free up mem
 		h_elements_old = null;
 
-		console.warn(`Applying ${a_deleted.length} deletions and ${a_added} additions to ${si_ref}.`);
-
+		console.warn(`Applying ${a_deleted.length} deletions and ${a_added.length} additions to ${si_ref}.`);
+debugger;
 		// deletions
 		if(a_deleted.length) {
 			const ds_delete = new stream.PassThrough();

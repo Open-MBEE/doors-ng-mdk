@@ -278,12 +278,16 @@ export class Class extends Element {
 		}
 
 		// export values
-		a_values_out.push([...a_values_in.map((w_value, i_value) => (
-			new Literal(this._k_factory, k_container, i_value+'', {
+		for(let i_value=0, nl_values=a_values_in.length; i_value<nl_values; i_value++) {
+			const w_value = a_values_in[i_value];
+
+			const k_literal = new Literal(this._k_factory, k_container, i_value+'', {
 				type: 'Literal'+s_type[0].toUpperCase()+s_type.slice(1),
 				value: w_value,
-			})).export()  // eslint-disable-line comma-dangle
-		)]);
+			});
+
+			a_values_out.push(k_literal.export());
+		}
 
 		k_attr.defaultValue(k_container);
 
