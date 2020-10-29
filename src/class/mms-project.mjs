@@ -85,7 +85,7 @@ export class MmsProject {
 		this._si_project = gc_mms.mms_project_id;
 		this._s_project_name = gc_mms.dng_project_name;
 
-		this._h_headers = {
+		const h_headers = this._h_headers = {
 			...H_HEADERS_JSON,
 			'Authorization': `Basic ${Buffer.from(H_ENV.MMS_USER+':'+H_ENV.MMS_PASS).toString('base64')}`,
 			'Transfer-Encoding': 'chunked',
@@ -96,7 +96,7 @@ export class MmsProject {
 		this._p_endpoint_refs = `${this._p_endpoint_project}/refs`;
 
 		const gc_req = {
-			headers: this._h_header,
+			headers: h_headers,
 		};
 
 		this._gc_req_get = {
@@ -245,8 +245,8 @@ export class MmsProject {
 	* @param {string} si_ref - which ref to use
 	* @returns {void}
 	*/
-	async upload_json_file(pr_json, si_ref='master') {
-		return await upload(fs.createReadStream(pr_json), this._endpoint_elements(si_ref), this._gc_req_post);
+	async upload_json_stream(ds_upload, si_ref='master') {
+		return await upload(ds_upload, this._endpoint_elements(si_ref), this._gc_req_post);
 	}
 
 

@@ -16,7 +16,7 @@ import {
 	decontextualize_quad,
 } from '../class/oslc-client.mjs';
 
-import dng_folder from './folder.mjs';
+import dng_folder from '../dng/folder.mjs';
 import H_PREFIXES from '../common/prefixes.mjs';
 
 const {
@@ -475,19 +475,19 @@ export class DngProject {
 				console.warn(cherr.blue(`<${p_config}> Baseline: ${s_title_config}`));
 				c_baselines += 1;
 			}
-			// streams
-			else if(as_types.has(SV1_OSLC_CONFIG_STREAM)) {
-				h_streams[p_config] = {
-					id: firstv(SV1_DCT_IDENTIFIER),
-					uri: p_config,
-					title: s_title_config,
-					created: firstv(SV1_DCT_CREATED),
-					creator: firstv(SV1_DCT_CREATOR),
-					description: firstv(SV1_DCT_DESCRIPTION),
-				};
-				console.warn(cherr.green(`<${p_config}> Stream: ${s_title_config}`));
-				c_streams += 1;
-			}
+			// // streams
+			// else if(as_types.has(SV1_OSLC_CONFIG_STREAM)) {
+			// 	h_streams[p_config] = {
+			// 		id: firstv(SV1_DCT_IDENTIFIER),
+			// 		uri: p_config,
+			// 		title: s_title_config,
+			// 		created: firstv(SV1_DCT_CREATED),
+			// 		creator: firstv(SV1_DCT_CREATOR),
+			// 		description: firstv(SV1_DCT_DESCRIPTION),
+			// 	};
+			// 	console.warn(cherr.green(`<${p_config}> Stream: ${s_title_config}`));
+			// 	c_streams += 1;
+			// }
 		}
 		console.warn(`${c_baselines} baselines; ${c_streams} streams; ${c_streams_deleted} deleted streams`);
 

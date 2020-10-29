@@ -76,7 +76,7 @@ export class MdkTranslator {
 		} = gc_translator);
 
 		// save origin
-		this._p_origin = (new URL(gc_translator.server)).origin;
+		this._p_origin = (new URL(gc_translator.dng_server)).origin;
 
 		// tolerant
 		this._b_tolerant = gc_translator.tolerant || false;

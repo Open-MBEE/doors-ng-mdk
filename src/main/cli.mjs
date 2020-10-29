@@ -10,6 +10,9 @@ import {once} from 'events';
 
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
+import pino from 'pino';
+const logger = pino();
+
 import chalk from 'chalk';
 const cherr = chalk.stderr;
 
@@ -37,7 +40,8 @@ process.on('unhandledRejection', (e_fatal) => {
 });
 
 // root dir
-const pd_root = path.join(os.tmpdir(), 'dng-mdk');
+// const pd_root = path.join(os.tmpdir(), 'dng-mdk');
+const pd_root = process.cwd();
 
 // ref env
 const H_ENV = process.env;
@@ -87,7 +91,7 @@ async function baseline_json_path(k_dng, g_baseline, gc_action) {
 	// project was not yet exported
 	if(!file_exists(p_json)) {
 		// tmp rdf file
-		const p_export = `./baselines/${gc_action.dng_project_id}.ttl`;
+		const p_export = `./baselines/${g_baseline.id}.ttl`;
 
 		// download dng project as RDF dataset to disk
 		await k_dng.export({
@@ -109,7 +113,7 @@ async function baseline_json_path(k_dng, g_baseline, gc_action) {
 }
 
 async function load_baseline(k_dng, g_baseline, gc_action) {
-	const p_json = await baseline_json_path(g_baseline, gc_action);
+	const p_json = await baseline_json_path(k_dng, g_baseline, gc_action);
 	return await load_mms_project_json(p_json);
 }
 
@@ -119,11 +123,11 @@ let y_yargs = yargs(hideBin(process.argv))
 
 // 'sync' command
 y_yargs = y_yargs.command({
-	command: 'sync',
+	command: 'sync <MMS_ORG_PROJECT_ID>',
 	describe: 'Sync a DNG project with MMS',
 	builder: _yargs => _yargs
 		.usage('dng-mdk sync MMS_ORG_PROJECT_ID --project <DNG_PROJECT_NAME> [OPTIONS]')
-		.positional('mopid', {
+		.positional('MMS_ORG_PROJECT_ID', {
 			type: 'string',
 			describe: 'org/project-id target for MMS project',
 		})
@@ -158,7 +162,7 @@ y_yargs = y_yargs.command({
 	async handler(g_argv) {
 		// malloc
 		if(g_argv.malloc) {
-			let a_args = [g_argv.mopid];
+			let a_args = [g_argv.MMS_ORG_PROJECT_ID];
 			if(g_argv.project) a_args.push(...['--project', g_argv.project+'']);
 			if(g_argv.sockets) a_args.push(...['--sockets', g_argv.sockets+'']);
 			if(g_argv.requests) a_args.push(...['--requests', g_argv.requests+'']);
@@ -175,7 +179,7 @@ y_yargs = y_yargs.command({
 			process.exit(xc_exit);
 		}
 
-		const [pd_project, si_mms_project, si_mms_org] = project_dir(g_argv.mopid);
+		const [pd_project, si_mms_project, si_mms_org] = project_dir(g_argv.MMS_ORG_PROJECT_ID);
 
 		// dng server
 		let p_server_dng = H_ENV.DNG_SERVER;
@@ -235,7 +239,7 @@ y_yargs = y_yargs.command({
 		const a_history = Object.values(h_histories)[0];
 
 		// mkdir ./baselines
-		fs.mkdirSync('baselines');
+		fs.mkdirSync('baselines', {recursive:true});
 
 		// optimization to speed up delta loading
 		let g_previous;
@@ -283,7 +287,7 @@ y_yargs = y_yargs.command({
 				const p_json_baseline = await baseline_json_path(k_dng, g_baseline, gc_action);
 
 				// serialize in full to mms
-				await k_mms.upload(fs.createReadStream(p_json_baseline), 'master');
+				await k_mms.upload_json_stream(fs.createReadStream(p_json_baseline), 'master');
 			}
 
 			// tag current HEAD as baseline
@@ -309,11 +313,11 @@ y_yargs = y_yargs.command({
 
 // 'trigger' command
 y_yargs = y_yargs.command({
-	command: 'trigger',
+	command: 'trigger <MMS_ORG_PROJECT_ID>',
 	describe: 'Trigger a job',
 	builder: _yargs => _yargs
 		.usage('dng-mdk trigger MMS_ORG_PROJECT_ID --job <JOB> [OPTIONS]')
-		.positional('mopid', {
+		.positional('MMS_ORG_PROJECT_ID', {
 			type: 'string',
 			describe: 'org/project-id target for MMS project',
 		})
@@ -334,7 +338,7 @@ y_yargs = y_yargs.command({
 			server: p_server,
 		} = g_argv;
 
-		const [, si_mms_project, si_mms_org] = project_dir(g_argv.mopid);
+		const [, si_mms_project, si_mms_org] = project_dir(g_argv.MMS_ORG_PROJECT_ID);
 
 		switch(s_job.toLowerCase()) {
 			case 'incquery': {

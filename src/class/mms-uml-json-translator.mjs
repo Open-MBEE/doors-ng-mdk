@@ -381,7 +381,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 	}
 
 	async end() {
-		this._ds_out.write(']}');
+		this._ds_out.end(']}');
 		await once(this._ds_out, 'finish');
 	}
 }
