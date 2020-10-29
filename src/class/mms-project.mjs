@@ -252,7 +252,7 @@ export class MmsProject {
 		h_elements_old = null;
 
 		console.warn(`Applying ${a_deleted.length} deletions and ${a_added.length} additions to ${si_ref}.`);
-debugger;
+
 		// deletions
 		if(a_deleted.length) {
 			const ds_delete = new stream.PassThrough();

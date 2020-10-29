@@ -50,7 +50,7 @@ export async function dng_translate(gc_translate) {
 	});
 
 	// translate artifacts
-	k_translator.translate_artifacts();
+	k_translator.translate_artifacts(true);
 
 	// close output
 	await k_translator.end();
