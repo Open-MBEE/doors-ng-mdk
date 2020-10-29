@@ -25,10 +25,23 @@ const H_HEADERS_JSON = {
 	'Content-Type': 'application/json',
 };
 
+function remove_meta(h_obj) {
+	for(const si_key of h_obj) {
+		if('_' === si_key[0] && '_appliedStereotypeIds' !== si_key) {
+			delete h_obj[si_key];
+		}
+
+		const z_value = h_obj[si_key];
+		if('object' === typeof z_value && !Array.isArray(z_value)) {
+			remove_meta(z_value);
+		}
+	}
+}
+
 function list_to_hash_by_ids(a_in) {
 	const h_out = {};
-	for(const g of a_in) {
-		h_out[g.id] = g;
+	for(const g_element of a_in) {
+		h_out[g_element.id] = remove_meta(g_element);
 	}
 	return h_out;
 }
