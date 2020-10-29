@@ -23,7 +23,7 @@ export async function dng_translate(gc_translate) {
 
 	// read exported dataset
 	await pipeline(...[
-		gc_translate.exported,
+		gc_translate.local_exported,
 		new TurtleReader({
 			eof(_h_prefixes) {
 				h_prefixes = {
@@ -43,24 +43,20 @@ export async function dng_translate(gc_translate) {
 
 	// create translator
 	const k_translator = new MmsUmlJsonTranslator({
-		server: gc_translate.server,
-		project: gc_translate.project,
-		label: gc_translate.label,
-		prefixes: h_prefixes,
-		dataset: kd_project,
-		output: gc_translate.adds,
-		tolerant: gc_translate.tolerant,
+		...gc_translate,
+		dng_prefixes: h_prefixes,
+		mem_dataset: kd_project,
+		local_output: gc_translate.local_adds,
 	});
 
 	// translate artifacts
 	k_translator.translate_artifacts();
 
 	// close output
-	k_translator.end();
+	await k_translator.end();
 
 	// done
 	console.timeEnd('translate');
-	console.log('done');
 }
 
 export default dng_translate;

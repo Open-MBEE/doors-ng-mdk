@@ -301,7 +301,7 @@ class Crawler {
 }
 
 export async function dng_project_info(gc_export) {
-	const p_server = (new URL(gc_export.server || process.env.DNG_SERVER)).origin;
+	const p_server = (new URL(gc_export.dng_server || process.env.DNG_SERVER)).origin;
 
 	// simple client
 	const k_client = new SimpleOslcClient();
@@ -329,7 +329,7 @@ export async function dng_project_info(gc_export) {
 		}
 	}
 	// project query url
-	let s_name_project = gc_export.project;
+	let s_name_project = gc_export.dng_project_name;
 
 	// select project
 	const p_project = h_projects[s_name_project];
@@ -366,34 +366,34 @@ export async function dng_project_info(gc_export) {
 	}
 
 	return {
-		title: s_name_project,
-		id: si_project,
-		prefixes: h_prefixes_out,
-		components: as_components,
-		project: kd_project,
+		dng_project_name: s_name_project,
+		dng_project_id: si_project,
+		dng_prefixes: h_prefixes_out,
+		dng_components: as_components,
+		mem_project: kd_project,
 	};
 }
 
 export async function dng_export(gc_export) {
-	const p_server = (new URL(gc_export.server)).origin;
-	const ds_out = gc_export.output;
+	const p_server = (new URL(gc_export.dng_server)).origin;
+	const ds_out = gc_export.local_output;
 
 	const H_ENV = process.env;
 	if(!H_ENV.DNG_USER || !H_ENV.DNG_PASS) {
 		throw new Error(`Missing one of or both required environment variables: 'DNG_USER', 'DNG_PASS`);
 	}
 
-	const n_socket_limit = gc_export.sockets || 64;
-	const n_concurrent_requests = gc_export.requests || n_socket_limit;
+	const n_socket_limit = gc_export.https_sockets || 64;
+	const n_concurrent_requests = gc_export.https_requests || n_socket_limit;
 
 	const y_client = new SimpleOslcClient({
-		server: p_server,
-		username: H_ENV.DNG_USER,
-		password: H_ENV.DNG_PASS,
-		sockets: n_socket_limit,
-		requests: n_concurrent_requests,
-		context: gc_export.context,
-		verbosity: gc_export.verbosity || H_ENV.DNG_EXPORT_DEBUG,
+		...gc_export,
+		dng_server: p_server,
+		dng_username: H_ENV.DNG_USER,
+		dng_password: H_ENV.DNG_PASS,
+		https_sockets: n_socket_limit,
+		https_requests: n_concurrent_requests,
+		mdk_verbosity: gc_export.mdk_verbosity || H_ENV.DNG_MDK_DEBUG,
 	});
 
 
@@ -402,12 +402,12 @@ export async function dng_export(gc_export) {
 
 	// project info
 	const {
-		id: si_project,
-		prefixes: h_prefixes,
-		project: kd_project,
+		dng_project_id: si_project,
+		dng_prefixes: h_prefixes,
+		mem_project: kd_project,
 	}= await dng_project_info({
 		...gc_export,
-		prefixes: y_client._h_prefixes,
+		dng_prefixes: y_client._h_prefixes,
 	});
 
 	let p_query_project;
@@ -486,7 +486,7 @@ export async function dng_export(gc_export) {
 	// gather requirements
 	const as_requirements = new Set();
 	GATHER_REQUIREMENTS: {
-		if(gc_export.useFolders) {
+		if(gc_export.dng_use_folders) {
 			const as_visited = new Set();
 
 			// recursively gather requirments using folder workaround
@@ -563,9 +563,6 @@ export async function dng_export(gc_export) {
 
 	// begin tasks
 	await Promise.all(a_tasks);
-
-	// done
-	console.warn(`done`);
 }
 
 export default dng_export;

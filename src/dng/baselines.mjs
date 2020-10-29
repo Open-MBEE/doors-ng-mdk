@@ -119,7 +119,7 @@ function stream_baseline_histories(h_baselines, h_streams) {
 }
 
 
-export async function dng_update_baselines(gc_update) {
+export async function dng_fetch_baselines(gc_update) {
 	// simple client
 	const k_client = new SimpleOslcClient();
 
@@ -128,8 +128,8 @@ export async function dng_update_baselines(gc_update) {
 
 	// deconstruct args
 	const {
-		components: as_components,
-		project_id: si_project,
+		dng_components: as_components,
+		dng_project_id: si_project,
 	} = gc_update;
 
 	// no components
@@ -227,18 +227,24 @@ export async function dng_update_baselines(gc_update) {
 	// produce history for default stream
 	const h_histories = stream_baseline_histories(h_baselines, h_streams);
 
-	// save to project dir
-	fs.writeFileSync(path.join(gc_update.project_dir, 'baselines.json'), JSON.stringify({
+	return {
 		histories: h_histories,
 		map: h_baselines,
-	}, null, '\t'));
+	};
+}
+
+export async function dng_update_baselines(gc_update) {
+	const g_baselines = await dng_fetch_baselines(gc_update);
+
+	// save to project dir
+	fs.writeFileSync(path.join(gc_update.local_project_dir, 'baselines.json'), JSON.stringify(g_baselines, null, '\t'));
 }
 
 
 export async function dng_export_baselines(gc_export) {
 	const {
-		project_id: si_project,
-		project_dir: pd_project,
+		dng_project_id: si_project,
+		dng_project_dir: pd_project,
 	} = gc_export;
 
 	const {
@@ -263,13 +269,13 @@ export async function dng_export_baselines(gc_export) {
 
 		await dng_export({
 			...gc_export,
-			context: p_baseline,
-			output: fs.createWriteStream(p_export),
+			dng_context: p_baseline,
+			local_output: fs.createWriteStream(p_export),
 		});
 	}
 }
 
-function compute_delta(h_a, h_b) {
+export function compute_delta(h_a, h_b) {
 	const a_added = [];
 	const a_deleted = [];
 
@@ -304,9 +310,9 @@ function compute_delta(h_a, h_b) {
 
 export async function dng_translate_baselines(gc_export) {
 	const {
-		project: si_mms_project,
-		label: s_project_label,
-		project_dir: pd_project,
+		mms_project_id: si_mms_project,
+		dng_project_name: s_project_label,
+		local_project_dir: pd_project,
 	} = gc_export;
 
 	const {
@@ -330,10 +336,10 @@ export async function dng_translate_baselines(gc_export) {
 		// translate in full
 		await dng_translate({
 			...gc_export,
-			project: si_mms_project,
-			label: s_project_label,
-			exported: fs.createReadStream(path.join(pd_project, 'baselines', `${g_baseline.id}.ttl`)),
-			adds: fs.createWriteStream(p_translated),
+			mms_project_id: si_mms_project,
+			dng_project_name: s_project_label,
+			local_exported: fs.createReadStream(path.join(pd_project, 'baselines', `${g_baseline.id}.ttl`)),
+			local_adds: fs.createWriteStream(p_translated),
 			tolerant: true,
 		});
 	}
@@ -341,7 +347,7 @@ export async function dng_translate_baselines(gc_export) {
 
 export async function dng_migrate_baselines(gc_migrate) {
 	const {
-		project_dir: pd_project,
+		local_project_dir: pd_project,
 	} = gc_migrate;
 
 	const {

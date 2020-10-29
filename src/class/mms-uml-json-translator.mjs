@@ -1,3 +1,4 @@
+import {once} from 'events';
 import DataFactory from '@graphy/core.data.factory';
 import chalk from 'chalk';
 const cherr = chalk.stderr;
@@ -27,8 +28,8 @@ const SV1_OSLC_INSTANCE_SHAPE = c1v('oslc:instanceShape');
 import {
 	XM_MULTIPLICITY_ZERO,
 	XM_MULTIPLICITY_MANY,
-	DngTranslator,
-} from './dng-translator.mjs';
+	MdkTranslator,
+} from '../class/mdk-translator.mjs';
 
 
 const first = as => [...as][0];
@@ -41,18 +42,15 @@ function warn_once(s_warn) {
 	console.warn(s_warn);
 }
 
-export class MmsUmlJsonTranslator extends DngTranslator {
+export class MmsUmlJsonTranslator extends MdkTranslator {
 	constructor(...a_args) {
 		super(...a_args);
 
-		// project title
-		const si_project = this._si_project;
-
 		// create element factory
-		const k_factory = this._k_factory = new ElementFactory(si_project, this._p_origin);
+		const k_factory = this._k_factory = new ElementFactory('root', this._p_origin);
 
 		// write root project element
-		const sj_root = k_factory.create_class(si_project+'_pm', this._s_project_label).dump()
+		const sj_root = k_factory.create_class('root_pm', this._s_project_label).dump()
 			.map(g => JSON.stringify(g, null, '\t')).join(',\n');
 
 		this._ds_out.write(/* syntax: json */ `{"elements":[\n${sj_root}`);
@@ -382,7 +380,8 @@ export class MmsUmlJsonTranslator extends DngTranslator {
 		this._ds_out.write(',\n'+k_artifact.dump().map(w => JSON.stringify(w, null, '\t')).join(',\n'));
 	}
 
-	end() {
+	async end() {
 		this._ds_out.write(']}');
+		await once(this._ds_out, 'finish');
 	}
 }

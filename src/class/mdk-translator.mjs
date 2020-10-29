@@ -66,14 +66,13 @@ const H_SCHEMA_DEFAULTS = {
 	},
 };
 
-export class DngTranslator {
+export class MdkTranslator {
 	constructor(gc_translator) {
 		({
-			prefixes: this._h_prefixes,
-			project: this._si_project,
-			label: this._s_project_label,
-			dataset: this._kd_project,
-			output: this._ds_out,
+			dng_prefixes: this._h_prefixes,
+			dng_project_name: this._s_project_label,
+			mem_dataset: this._kd_project,
+			local_output: this._ds_out,
 		} = gc_translator);
 
 		// save origin

@@ -122,17 +122,17 @@ export function decontextualize_quad(kt_quad) {
 */
 export class SimpleOslcClient {
 	constructor(gc_client={}) {
-		const p_server = this._p_server = H_ENV.DNG_SERVER || gc_client.server;
-		this._s_username = H_ENV.DNG_USER || gc_client.username;
-		this._s_password = H_ENV.DNG_PASS || gc_client.password;
+		const p_server = this._p_server = H_ENV.DNG_SERVER || gc_client.dng_server;
+		this._s_username = H_ENV.DNG_USER || gc_client.dng_username;
+		this._s_password = H_ENV.DNG_PASS || gc_client.dng_password;
 		this._y_cookies = new CookieManager();
-		this._xc_verbosity = gc_client.verbosity || 0;
-		this._p_context = gc_client.context || null;
+		this._xc_verbosity = gc_client.mdk_verbosity || 0;
+		this._p_context = gc_client.dng_context || null;
 		this._d_agent = new https.Agent({
 			keepAlive: true,
-			maxSockets: gc_client.sockets || 1,
+			maxSockets: gc_client.https_sockets || 1,
 			// scheduling: 'lifo',
-			timeout: gc_client.timeout || 12000,  // 12 seconds
+			timeout: gc_client.https_timeout || 12000,  // 12 seconds
 		});
 
 		if(this._p_context) {

@@ -44,7 +44,7 @@ const SV1_OSLC_INSTANCE_SHAPE = c1v('oslc:instanceShape');
 export async function dng_delta_json(gc_delta) {
 	debugger;
 
-	
+
 }
 
 export async function dng_delta(gc_delta) {
@@ -56,7 +56,7 @@ export async function dng_delta(gc_delta) {
 
 	await Promise.all([
 		pipeline(...[
-			gc_delta.cached,
+			gc_delta.local_cached,
 			new TurtleReader({
 				data(g_quad) {
 					if(g_quad.subject.isNamedNode) {
@@ -74,7 +74,7 @@ export async function dng_delta(gc_delta) {
 		]),
 
 		pipeline(...[
-			gc_delta.exported,
+			gc_delta.local_exported,
 			new TurtleReader(),
 			kd_exported,
 		]),
@@ -85,12 +85,10 @@ export async function dng_delta(gc_delta) {
 
 	// create translator
 	const k_translator = new MmsUmlJsonTranslator({
-		server: gc_delta.server,
-		project: gc_delta.project,
-		label: gc_delta.label,
-		prefixes: h_prefixes,
-		dataset: kd_exported,
-		output: gc_delta.adds,
+		...gc_delta,
+		dng_prefixes: h_prefixes,
+		mem_dataset: kd_exported,
+		local_output: gc_delta.local_adds,
 	});
 
 	console.time('delta');

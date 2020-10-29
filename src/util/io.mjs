@@ -3,6 +3,11 @@ import fs from 'fs';
 import https from 'https';
 import stream from 'stream';
 
+import util from 'util';
+import chalk from 'chalk';
+
+const cherr = chalk.stderr;
+
 // test if file exists
 export function file_exists(p_file) {
 	// attempt to access file
@@ -26,6 +31,14 @@ export function fetch(p_url, gc_request, f_connected=null) {
 	let ds_req;
 
 	const dp_exec = new Promise((fk_resolve, fe_reject) => {
+		// verbose
+		if(process.env.DNG_MDK_DEBUG) {
+			console.warn(cherr.blue(`HTTP ${gc_request.method || 'GET'} <${p_url}> config:`));
+			const h_req_print = {...gc_request};
+			delete h_req_print.agent;
+			console.warn(util.inspect(h_req_print, false, 1, true));
+		}
+
 		ds_req = https.request(p_url, {
 			...gc_request,
 			headers: {
@@ -33,6 +46,12 @@ export function fetch(p_url, gc_request, f_connected=null) {
 				'Accept': 'application/json',
 			},
 		}, async(ds_res) => {
+			// verbose
+			if(process.env.DNG_MDK_DEBUG) {
+				console.warn(cherr.yellow(`Received ${ds_res.statusCode} from endpoint w/ response headers:`));
+				console.warn('\t'+cherr.grey(JSON.stringify(ds_res.headers)));
+			}
+
 			if(f_connected) {
 				[fk_resolve, fe_reject] = f_connected();
 			}
@@ -95,7 +114,7 @@ export const upload = (z_input, p_url, gc_request) => new Promise((fk_resolve, f
 	}
 	// stream
 	else if('function' === typeof z_input.setEncoding) {
-		stream.pipeline([
+		return stream.pipeline([
 			z_input,
 			ds_upload,
 		], (e_upload) => {
@@ -120,4 +139,14 @@ export const upload = (z_input, p_url, gc_request) => new Promise((fk_resolve, f
 	else {
 		throw new Error(`Not able to duck-type payload: ${z_input}`);
 	}
+
+	ds_upload.on('error', fe_reject);
+	ds_upload.on('finish', () => {
+		console.warn(`Payload successfully uploaded to <${p_url}>`);
+		const t_start = Date.now();
+		dt_waiting = setInterval(() => {
+			const xs_elapsed = Math.round((Date.now() - t_start) / 1000);
+			console.warn(`${Math.floor(xs_elapsed / 60)}m${((xs_elapsed % 60)+'').padStart(2, '0')}s have elapsed and still waiting...`);
+		}, 1000*60*5);  // every 5 minutes
+	});
 });
