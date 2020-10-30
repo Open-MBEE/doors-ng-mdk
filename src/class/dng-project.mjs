@@ -1,4 +1,5 @@
 import {URL, URLSearchParams} from 'url';
+import {once} from 'events';
 import TurtleWriter from '@graphy/content.ttl.write';
 import factory from '@graphy/core.data.factory';
 import pino from 'pino';
@@ -235,7 +236,7 @@ export class DngProject {
 		let p_query_folder;
 		let ds_scribe;
 		SELECT_PROJECT: {
-			// for writing rdf to stdout
+			// for writing rdf to output stream
 			ds_scribe = new TurtleWriter({
 				prefixes: h_prefixes,
 			});
@@ -384,6 +385,12 @@ export class DngProject {
 
 		// begin tasks
 		await Promise.all(a_tasks);
+
+		// close output
+		ds_scribe.end();
+		ds_out.end();
+
+		await once(ds_out, 'finish');
 	}
 
 	async fetch_baselines() {
