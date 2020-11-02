@@ -8,10 +8,11 @@ import chalk from 'chalk';
 
 const cherr = chalk.stderr;
 
-import {
+import StreamJson from '../util/stream-json.js';
+const {
 	JsonParser,
 	JsonStreamValues,
-} from '../util/stream-json.js';
+} = StreamJson;
 
 // test if file exists
 export function file_exists(p_file) {
