@@ -78,20 +78,19 @@ const load_mms_project_json = pr_file => new Promise((fk_resolve, fe_reject) => 
 	const h_elements = {};
 
 	const ds_pipeline = pipeline([
-		pr_file,
+		fs.createReadStream(pr_file),
 		JsonPick.withParser({filter:'elements'}),
-		JsonStreamArray(),
-		(e_pipe) => {
+		new JsonStreamArray(),
+	], (e_pipe) => {
 			if(e_pipe) {
-				fe_reject(new Error(`Error while stream parsing JSON: ${e_pipe.stack}`));
+				fe_reject(new Error(`Error while stream parsing project JSON from file ${pr_file}: ${e_pipe.stack}`));
 			}
 			else {
 				fk_resolve(h_elements);
 			}
-		},
-	]);
+		});
 
-	ds_pipeline.on('data', (g_element) => {
+	ds_pipeline.on('data', ({value:g_element}) => {
 		h_elements[g_element.id] = g_element;
 	});
 });

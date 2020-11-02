@@ -12,6 +12,7 @@ import StreamJson from '../util/stream-json.js';
 const {
 	JsonParser,
 	JsonStreamValues,
+	JsonStreamObject,
 } = StreamJson;
 
 // test if file exists
@@ -66,26 +67,24 @@ export function fetch(p_url, gc_request, f_connected=null) {
 
 			// good
 			if(n_status >= 200 && n_status < 300) {
-				let w_json = {};
+				let g_json = {};
 
 				// load response body
 				const ds_pipe = stream.pipeline([
 					ds_res,
-					JsonParser(),
-					JsonStreamValues(),
-					(e_pipe) => {
+					JsonStreamObject.withParser(),
+				], (e_pipe) => {
 						if(e_pipe) {
-							throw new Error(`Error while streaming parsing response JSON: ${e_pipe.stack}`);
+							throw new Error(`Error while streaming parsing response JSON from <${p_url}>: ${e_pipe.stack}`);
 						}
 						else {
-							fk_resolve(w_json);
+							fk_resolve(g_json);
 						}
-					},
-				]);
+					});
 
 				// response json object
-				ds_pipe.on('data', (_w_json) => {
-					w_json = _w_json;
+				ds_pipe.on('data', ({key:si_key, value:w_value}) => {
+					g_json[si_key] = w_value;
 				});
 			}
 			// bad
