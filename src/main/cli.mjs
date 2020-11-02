@@ -7,6 +7,13 @@ import {URL, URLSearchParams} from 'url';
 import {fork} from 'child_process';
 import {filename} from 'dirname-filename-esm';
 import {once} from 'events';
+import {pipeline} from 'stream';
+
+import StreamJson from '../util/stream-json.js';
+const {
+	JsonPick,
+	JsonStreamArray,
+} = StreamJson;
 
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
@@ -67,21 +74,27 @@ function project_dir(s_mms) {
 	return [path.join(pd_root, 'data', si_mms_org, si_mms_project), si_mms_project, si_mms_org];
 }
 
-function load_mms_project_json(pr_file) {
-	const s_json = fs.readFileSync(pr_file);
-	let a_elements;
-	try {
-		a_elements = JSON.parse(s_json).elements;
-	}
-	catch(e_parse) {
-		throw new Error(`Invalid JSON while attempting to load ${pr_file}`);
-	}
+const load_mms_project_json = pr_file => new Promise((fk_resolve, fe_reject) => {
 	const h_elements = {};
-	for(const g_element of a_elements) {
+
+	const ds_pipeline = pipeline([
+		pr_file,
+		JsonPick.withParser({filter:'elements'}),
+		JsonStreamArray(),
+		(e_pipe) => {
+			if(e_pipe) {
+				fe_reject(new Error(`Error while stream parsing JSON: ${e_pipe.stack}`));
+			}
+			else {
+				fk_resolve(h_elements);
+			}
+		},
+	]);
+
+	ds_pipeline.on('data', (g_element) => {
 		h_elements[g_element.id] = g_element;
-	}
-	return h_elements;
-}
+	});
+});
 
 
 async function baseline_json_path(k_dng, g_baseline, gc_action) {
