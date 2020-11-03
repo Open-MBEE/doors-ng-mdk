@@ -8,6 +8,13 @@ import chalk from 'chalk';
 
 const cherr = chalk.stderr;
 
+import StreamJson from '../util/stream-json.js';
+const {
+	JsonParser,
+	JsonStreamValues,
+	JsonStreamObject,
+} = StreamJson;
+
 // test if file exists
 export function file_exists(p_file) {
 	// attempt to access file
@@ -58,28 +65,36 @@ export function fetch(p_url, gc_request, f_connected=null) {
 
 			const n_status = ds_res.statusCode;
 
-			// download response body
-			let s_body = '';
-			for await(const s_chunk of ds_res) {
-				s_body += s_chunk;
-			}
-
 			// good
 			if(n_status >= 200 && n_status < 300) {
-				// parse
-				let g_json;
-				try {
-					g_json = JSON.parse(s_body);
-				}
-				catch(e_parse) {
-					return fe_reject(new Error(`Response body is not valid json: '''\n${s_body}\n'''`));
-				}
+				let g_json = {};
 
-				// resolve
-				return fk_resolve(g_json);
+				// load response body
+				const ds_pipe = stream.pipeline([
+					ds_res,
+					JsonStreamObject.withParser(),
+				], (e_pipe) => {
+						if(e_pipe) {
+							throw new Error(`Error while streaming parsing response JSON from <${p_url}>: ${e_pipe.stack}`);
+						}
+						else {
+							fk_resolve(g_json);
+						}
+					});
+
+				// response json object
+				ds_pipe.on('data', ({key:si_key, value:w_value}) => {
+					g_json[si_key] = w_value;
+				});
 			}
 			// bad
 			else {
+				// download response body
+				let s_body = '';
+				for await(const s_chunk of ds_res) {
+					s_body += s_chunk;
+				}
+
 				return fe_reject(new Error(`Unexpected response status ${n_status} from <${p_url}> '${ds_res.statusMessage}'; response body: '''\n${s_body}\n'''. Request metadata: ${JSON.stringify(gc_request, null, '\t')}`));
 			}
 		});
