@@ -17,5 +17,6 @@ ENV MMS_SERVER $mms_server
 
 COPY . .
 RUN npm install
+RUN npm link
 
-ENTRYPOINT node "/src/main/cli.mjs"
+ENTRYPOINT "dng-mdk" "$@"
