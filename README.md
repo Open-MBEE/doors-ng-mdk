@@ -69,3 +69,12 @@ Say we have a project on Doors NG entitled "Example Test", and we want to sync i
 $ dng-mdk sync eg/test --project 'Example Test' --malloc 24576 &> eg-test.log
 ```
 
+### Docker
+To build the dng-mdk docker image:
+```console
+$ docker build --build-args dng_server {DNG_SERVER} --build-args mms_server {MMS_SERVER} -t dng-mdk:latest .
+```
+To runL
+```console
+$ docker run -e "DNG_USER={DNG_USER}" -e "DNG_PASS={DNG_PASS}" dng-mdk:latest export {DNG_PROJECT}
+```
