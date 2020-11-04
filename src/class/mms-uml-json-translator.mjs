@@ -16,11 +16,14 @@ const {
 
 
 const KT_RDF_TYPE = c1('a');
+const KT_RDF_SUBJECT = c1('rdf:subject');
 
 const c1v = sc1 => c1(sc1, H_PREFIXES).concise();
 
 const SV1_FOAF_NICK = c1v('foaf:nick');
 const SV1_DCT_TITLE = c1v('dct:title');
+const SV1_RDF_PREDICATE = c1v('rdf:predicate');
+const SV1_RDF_OBJECT = c1v('rdf:object');
 
 const SV1_OSLC_INSTANCE_SHAPE = c1v('oslc:instanceShape');
 
@@ -202,10 +205,23 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 			_f_c1p: c1p,
 			_hv3_trips: hv3_trips,
 			_k_factory: k_factory,
+			_kd_project: kd_project,
 		} = this;
 
 		// clone probs tree so we can delete visited properties
 		const hv2_probs = Object.assign({}, hv3_trips['>'+p_requirement]);
+
+		// de-reify any reified statements of this subject
+		const kd_reified = kd_project.match(null, KT_RDF_SUBJECT, namedNode(p_requirement));
+		for(const kq_reified of kd_reified) {
+			const hv2_reified = hv3_trips[kq_reified.subject.value];
+
+			// convert object named node term to predicate v1 string
+			const sv1_predicate = '>'+first(hv2_reified[SV1_RDF_PREDICATE]).value;
+
+			// copy objects set from reified quads over to tmp (cloned) artifact probs tree
+			hv2_probs[sv1_predicate] = hv2_reified[SV1_RDF_OBJECT];
+		}
 
 		// instance shape
 		const as_shapes = hv2_probs[SV1_OSLC_INSTANCE_SHAPE];
