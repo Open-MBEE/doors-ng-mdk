@@ -167,6 +167,10 @@ y_yargs = y_yargs.command({
 				type: 'boolean',
 				describe: 'delete the project if it already exists on MMS and create a new project in its place ',
 			},
+			baselines: {
+				type: 'number',
+				describe: 'only sync the N latest baselines at most',
+			},
 			'use-folders': {
 				describe: `use the 'folders' workaround to fetch all artifacts for a large project`,
 				type: 'boolean',
@@ -259,7 +263,10 @@ y_yargs = y_yargs.command({
 		let g_previous;
 
 		// each baseline in order
-		for(let i_baseline=0, nl_baselines=a_history.length; i_baseline<nl_baselines; i_baseline++) {
+		const nl_baselines = a_history.length;
+		const n_max_baselines = g_argv.baselines || 0;
+		const i_baseline_start = n_max_baselines? Math.min(0, nl_baselines-n_max_baselines): 0;
+		for(let i_baseline=i_baseline_start; i_baseline<nl_baselines; i_baseline++) {
 			const p_baseline = a_history[i_baseline];
 			const g_baseline = h_baselines[p_baseline];
 
@@ -342,10 +349,12 @@ y_yargs = y_yargs.command({
 			job: {
 				describe: 'named job to run',
 				type: 'string',
+				demandOption: true,
 			},
 			server: {
 				describe: 'the server URL',
 				type: 'string',
+				demandOption: true,
 			},
 		})
 		.help().version(false),
