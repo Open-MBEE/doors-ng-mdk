@@ -40,14 +40,6 @@ function remove_meta(h_obj) {
 	return h_obj;
 }
 
-function list_to_hash_by_ids(a_in) {
-	const h_out = {};
-	for(const g_element of a_in) {
-		h_out[g_element.id] = remove_meta(g_element);
-	}
-	return h_out;
-}
-
 function canonicalize(z_a) {
 	if(Array.isArray(z_a)) {
 		// object nested
@@ -242,6 +234,10 @@ export class MmsProject {
 	* @returns {void}
 	*/
 	async apply_deltas(h_elements_old, h_elements_new, si_ref='master') {
+		// do not compare meta elements
+		delete h_elements_old[this._si_project];
+		delete h_elements_new[this._si_project];
+
 		// diff jsons
 		const {
 			added: a_added,
@@ -331,8 +327,32 @@ export class MmsProject {
 	* @returns {Promise} - the elements hash as {[element_id]: element}
 	*/
 	async load(si_ref='master') {
+		const si_project = this._si_project;
 		const g_project = await fetch(this._endpoint_elements(si_ref, true), this._gc_req_get);
-		return list_to_hash_by_ids(g_project.elements);
+		const a_elements = g_project.elements;
+
+		// prep output hash
+		const h_out = {};
+
+		// each element
+		for(const g_element of a_elements) {
+			// skip project element
+			if('Project' === g_element.type) continue;
+
+			// project is owner
+			if(si_project === g_element.ownerId && 'Package' === g_element.type) {
+				// do not compare special elements
+				if('Holding Bin' === g_element.name && 'View Instances Bin' === g_element.name) {
+					continue;
+				}
+			}
+
+			// otherwise, add to hash
+			h_out[g_element.id] = remove_meta(g_element);
+		}
+
+		// return hash
+		return h_out;
 	}
 }
 
