@@ -214,10 +214,10 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 		// de-reify any reified statements of this subject
 		const kd_reified = kd_project.match(null, KT_RDF_SUBJECT, namedNode(p_requirement));
 		for(const kq_reified of kd_reified) {
-			const hv2_reified = hv3_trips['>'+kq_reified.subject.value];
+			const hv2_reified = hv3_trips[kq_reified.subject.concise()];
 
 			// convert object named node term to predicate v1 string
-			const sv1_predicate = '>'+first(hv2_reified[SV1_RDF_PREDICATE]).value;
+			const sv1_predicate = first(hv2_reified[SV1_RDF_PREDICATE]);
 
 			// copy objects set from reified quads over to tmp (cloned) artifact probs tree
 			hv2_probs[sv1_predicate] = hv2_probs[sv1_predicate]
