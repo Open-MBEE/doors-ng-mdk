@@ -254,75 +254,87 @@ y_yargs = y_yargs.command({
 		// load refs
 		const h_refs = await k_mms.refs();
 
-		// fetch dng baseline info
-		const {
-			histories: h_histories,
-			map: h_baselines,
-		} = await k_dng.fetch_baselines();
-
-		// use default stream
-		const a_history = Object.values(h_histories)[0];
-
-		// mkdir ./baselines
-		fs.mkdirSync('baselines', {recursive:true});
-
-		// optimization to speed up delta loading
-		let g_previous;
-
-		// each baseline in order
-		const nl_baselines = a_history.length;
-		const n_max_baselines = g_argv.baselines || 0;
-		const i_baseline_start = n_max_baselines? Math.min(0, nl_baselines-n_max_baselines): 0;
-		for(let i_baseline=i_baseline_start; i_baseline<nl_baselines; i_baseline++) {
-			const p_baseline = a_history[i_baseline];
-			const g_baseline = h_baselines[p_baseline];
-
-			// baseline already exists in MMS; skip it
-			if(h_refs[`baseline.${g_baseline.id}`]) {
-				console.warn(`skipping baseline which already exists in MMS: '${g_baseline.id}'`);
-				continue;
+		// number of baselines specified or all baselines by default
+		let n_max_baselines = g_argv.baselines;
+		if(0 !== n_max_baselines) {
+			// number safety
+			if('number' !== n_max_baselines || Number.isNaN(n_max_baselines)) {
+				n_max_baselines = 0;
 			}
 
-			// baseline has 'previous' dependency
-			if(g_baseline.previous) {
-				// load previous into memory
-				let h_elements_previous;
+			// fetch dng baseline info
+			const {
+				histories: h_histories,
+				map: h_baselines,
+			} = await k_dng.fetch_baselines();
 
-				// previous already loaded into memory
-				if(g_previous && g_previous.id === g_baseline.previous) {
-					h_elements_previous = g_previous.elements;
+			// use default stream
+			const a_history = Object.values(h_histories)[0];
+
+			// mkdir ./baselines
+			fs.mkdirSync('baselines', {recursive:true});
+
+			// optimization to speed up delta loading
+			let g_previous;
+
+			// each baseline in order
+			const nl_baselines = a_history.length;
+			const i_baseline_start = n_max_baselines? Math.min(0, nl_baselines-n_max_baselines): 0;
+			for(let i_baseline=i_baseline_start; i_baseline<nl_baselines; i_baseline++) {
+				const p_baseline = a_history[i_baseline];
+				const g_baseline = h_baselines[p_baseline];
+
+				// baseline already exists in MMS; skip it
+				if(h_refs[`baseline.${g_baseline.id}`]) {
+					console.warn(`skipping baseline which already exists in MMS: '${g_baseline.id}'`);
+					continue;
 				}
-				// (down)load baseline
+
+				// baseline has 'previous' dependency
+				if(g_baseline.previous) {
+					// load previous into memory
+					let h_elements_previous;
+
+					// previous already loaded into memory
+					if(g_previous && g_previous.id === g_baseline.previous) {
+						h_elements_previous = g_previous.elements;
+					}
+					// (down)load baseline
+					else {
+						h_elements_previous = await load_baseline(k_dng, h_baselines[g_baseline.previous], gc_action);
+					}
+
+					// load baseline into memory
+					const h_elements_baseline = await load_baseline(k_dng, g_baseline, gc_action);
+
+					// apply deltas
+					await k_mms.apply_deltas(h_elements_previous, h_elements_baseline, 'master');
+
+					// set previous
+					g_previous = {
+						id: g_baseline.id,
+						elements: h_elements_baseline,
+					};
+				}
+				// baseline has no previous
 				else {
-					h_elements_previous = await load_baseline(k_dng, h_baselines[g_baseline.previous], gc_action);
+					// free 'previous' cache
+					g_previous = null;
+
+					// prep baseline elements
+					const p_json_baseline = await baseline_json_path(k_dng, g_baseline, gc_action);
+
+					// serialize in full to mms
+					await k_mms.upload_json_stream(fs.createReadStream(p_json_baseline), 'master');
 				}
 
-				// load baseline into memory
-				const h_elements_baseline = await load_baseline(k_dng, g_baseline, gc_action);
-
-				// apply deltas
-				await k_mms.apply_deltas(h_elements_previous, h_elements_baseline, 'master');
-
-				// set previous
-				g_previous = {
-					id: g_baseline.id,
-					elements: h_elements_baseline,
-				};
+				// tag current HEAD as baseline
+				await k_mms.tag_head_as_baseline(g_baseline, 'master');
 			}
-			// baseline has no previous
-			else {
-				// free 'previous' cache
-				g_previous = null;
-
-				// prep baseline elements
-				const p_json_baseline = await baseline_json_path(k_dng, g_baseline, gc_action);
-
-				// serialize in full to mms
-				await k_mms.upload_json_stream(fs.createReadStream(p_json_baseline), 'master');
-			}
-
-			// tag current HEAD as baseline
-			await k_mms.tag_head_as_baseline(g_baseline, 'master');
+		}
+		// skip baselines
+		else {
+			console.warn(`skipping baselines`);
 		}
 
 		// finally, figure out difference between latest mms and latest dng
