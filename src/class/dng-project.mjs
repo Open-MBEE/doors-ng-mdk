@@ -157,11 +157,16 @@ export class DngProject {
 		const p_project = h_projects[s_name_project];
 		let si_project;
 
-		// fetch
-		const kd_project = await k_client.load(p_project);
+		// no such project
+		if(!p_project) {
+			throw new Error(`No such project named '${s_name_project}'. The projects found on DNG were: ${JSON.stringify(h_projects, null, '\t')}`);
+		}
 
 		// verbose
 		console.warn(`'${s_name_project}': <${p_project}>`);
+
+		// fetch
+		const kd_project = await k_client.load(p_project);
 
 		// grab components
 		const as_components = new Set();
