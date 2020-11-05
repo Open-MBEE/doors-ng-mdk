@@ -214,7 +214,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 		// de-reify any reified statements of this subject
 		const kd_reified = kd_project.match(null, KT_RDF_SUBJECT, namedNode(p_requirement));
 		for(const kq_reified of kd_reified) {
-			const hv2_reified = hv3_trips[kq_reified.subject.value];
+			const hv2_reified = hv3_trips['>'+kq_reified.subject.value];
 
 			// convert object named node term to predicate v1 string
 			const sv1_predicate = '>'+first(hv2_reified[SV1_RDF_PREDICATE]).value;
