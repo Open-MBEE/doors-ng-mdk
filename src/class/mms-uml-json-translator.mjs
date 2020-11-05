@@ -16,7 +16,7 @@ const {
 
 
 const KT_RDF_TYPE = c1('a');
-const KT_RDF_SUBJECT = c1('rdf:subject');
+const KT_RDF_SUBJECT = c1('rdf:subject', H_PREFIXES);
 
 const c1v = sc1 => c1(sc1, H_PREFIXES).concise();
 
