@@ -220,7 +220,9 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 			const sv1_predicate = '>'+first(hv2_reified[SV1_RDF_PREDICATE]).value;
 
 			// copy objects set from reified quads over to tmp (cloned) artifact probs tree
-			hv2_probs[sv1_predicate] = hv2_reified[SV1_RDF_OBJECT];
+			hv2_probs[sv1_predicate] = hv2_probs[sv1_predicate]
+				? new Set([...hv2_probs[sv1_predicate], ...hv2_reified[SV1_RDF_OBJECT]])
+				: hv2_reified[SV1_RDF_OBJECT];
 		}
 
 		// instance shape
