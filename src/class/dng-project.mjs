@@ -121,6 +121,7 @@ export class DngProject {
 		this._p_server = (new URL(gc_dng.dng_server || process.env.DNG_SERVER)).origin;
 
 		this._s_project_name = gc_dng.dng_project_name;
+		this._n_auth_retries = gc_dng.dng_auth_retries || 0;
 	}
 
 	async info() {
@@ -131,7 +132,7 @@ export class DngProject {
 		const h_prefixes = k_client._h_prefixes;
 
 		// authenticate
-		await k_client.authenticate();
+		await k_client.authenticate(this._n_auth_retries);
 
 		// collect root services
 		const ds_root_services = await k_client.root_services();
@@ -223,7 +224,7 @@ export class DngProject {
 
 
 		// authenticate
-		await y_client.authenticate();
+		await y_client.authenticate(this._n_auth_retries);
 
 		// project info
 		const {
@@ -398,7 +399,7 @@ export class DngProject {
 		const k_client = new SimpleOslcClient();
 
 		// authenticate
-		await k_client.authenticate();
+		await k_client.authenticate(this._n_auth_retries);
 
 		// deconstruct args
 		const {

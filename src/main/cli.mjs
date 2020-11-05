@@ -171,6 +171,10 @@ y_yargs = y_yargs.command({
 				type: 'number',
 				describe: 'only sync the N latest baselines at most',
 			},
+			'auth-retries': {
+				type: 'number',
+				describe: 'number of times to retry failed DNG authentication',
+			},
 			'use-folders': {
 				describe: `use the 'folders' workaround to fetch all artifacts for a large project`,
 				type: 'boolean',
@@ -185,6 +189,8 @@ y_yargs = y_yargs.command({
 			if(g_argv.sockets) a_args.push(...['--sockets', g_argv.sockets+'']);
 			if(g_argv.requests) a_args.push(...['--requests', g_argv.requests+'']);
 			if(g_argv.reset) a_args.push(...['--reset']);
+			if(g_argv.baselines) a_args.push(...['--baselines', g_argv.baselines+'']);
+			if(g_argv.authRetries) a_args.push(...['--auth-retries', g_argv.authRetries+'']);
 			if(g_argv.useFolders) a_args.push(...['--use-folders']);
 
 			const u_sub = fork(filename(import.meta), ['sync', ...a_args], {
@@ -224,6 +230,7 @@ y_yargs = y_yargs.command({
 			dng_server: p_server_dng,
 			dng_project_name: g_argv.project,
 			dng_use_folders: g_argv.useFolders,
+			dng_auth_retries: g_argv.authRetries || 3,
 			local_project_dir: pd_project,
 			mms_server: H_ENV.MMS_SERVER,
 			mms_project_org: si_mms_org,

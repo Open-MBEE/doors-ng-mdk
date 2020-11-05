@@ -239,7 +239,7 @@ export class SimpleOslcClient {
 	* Authenticate the client against by starting a session and obtaining the necessary cookie.
 	* @returns {Promise} - resolves once the session has started
 	*/
-	async authenticate() {
+	async authenticate(n_retries=0) {
 		// start session
 		await SimpleOslcClient$follow(this, `/rm/loginRedirect?redirect=${encodeURIComponent(this._p_server+'/rm')}`);
 
@@ -263,7 +263,14 @@ export class SimpleOslcClient {
 
 		// authentication failed
 		if('authfailed' === ds_res_auth.headers['x-com-ibm-team-repository-web-auth-msg']) {
-			throw new Error(`Authentication failed.\n${s_body_auth}`);
+			// retry
+			if('number' === typeof n_retries && n_retries > 0) {
+				return await this.authenticate(n_retries-1);
+			}
+			// out of retries
+			else {
+				throw new Error(`Authentication failed.\n${s_body_auth}`);
+			}
 		}
 
 		// success
