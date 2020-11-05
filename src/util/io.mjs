@@ -2,6 +2,7 @@
 import fs from 'fs';
 import https from 'https';
 import stream from 'stream';
+import {createHash} from 'crypto';
 
 import util from 'util';
 import chalk from 'chalk';
@@ -14,6 +15,8 @@ const {
 	JsonStreamValues,
 	JsonStreamObject,
 } = StreamJson;
+
+export const hash = s => createHash('sha256').update(s).digest('hex');
 
 // test if file exists
 export function file_exists(p_file) {

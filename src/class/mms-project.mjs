@@ -11,6 +11,7 @@ import chalk from 'chalk';
 const cherr = chalk.stderr;
 
 import {
+	hash,
 	request,
 	fetch,
 	upload,
@@ -304,7 +305,7 @@ export class MmsProject {
 		// commit tag
 		await upload(JSON.stringify({
 			refs: [{
-				id: `baseline.${g_baseline.id}`,
+				id: hash(`baseline.${g_baseline.id}`),
 				name: g_baseline.title,
 				parentRefId: si_ref,
 				type: 'Tag',

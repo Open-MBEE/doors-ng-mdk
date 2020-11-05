@@ -25,6 +25,7 @@ const cherr = chalk.stderr;
 
 import {
 	file_exists,
+	hash,
 	request,
 	fetch,
 	upload,
@@ -285,7 +286,7 @@ y_yargs = y_yargs.command({
 				const g_baseline = h_baselines[p_baseline];
 
 				// baseline already exists in MMS; skip it
-				if(h_refs[`baseline.${g_baseline.id}`]) {
+				if(h_refs[hash(`baseline.${g_baseline.id}`)]) {
 					console.warn(`skipping baseline which already exists in MMS: '${g_baseline.id}'`);
 					continue;
 				}
