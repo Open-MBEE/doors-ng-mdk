@@ -533,20 +533,27 @@ y_yargs = y_yargs.command({
 				console.time('neptune');
 
 				// load neptune index
-				await upload(JSON.stringify({
-					modelCompartment: {compartmentURI:p_compartment},
-					format: 'RDF_TURTLE',
-				}), `${p_server}/api/amazon-neptune-integration.loadModelCompartment`, {
-					method: 'POST',
-					headers: h_headers_iqs,
-				});
+				try {
+					await upload(JSON.stringify({
+						modelCompartment: {compartmentURI:p_compartment},
+						format: 'RDF_TURTLE',
+					}), `${p_server}/api/amazon-neptune-integration.loadModelCompartment`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
+				}
+				catch(e_index) {
+					console.error(`Failed to create Neptune index but continuing anyway... ${e_index.stack}`);
+				}
 
 				console.timeEnd('neptune');
 				console.warn(`deleting old compartments...`);
 				console.time('delete');
 
 				// finally, delete all the old compartments
-				for(const p_compartment_old of g_body_pers.persistedModelCompartments) {
+				for(const g_compartment of g_body_pers.persistedModelCompartments) {
+					const p_compartment_old = g_compartment.compartmentURI;
+
 					// mopid match
 					if(p_compartment_old.startsWith(s_compartment_start) && p_compartment !== p_compartment_old) {
 						// delete it
