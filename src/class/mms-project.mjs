@@ -281,6 +281,12 @@ export class MmsProject {
 			await once(ds_add, 'finish');
 			await dp_upload;
 		}
+
+		// return summary (number of elements deleted/added)
+		return {
+			deleted: a_deleted.length,
+			added: a_added.length,
+		};
 	}
 
 
@@ -343,7 +349,7 @@ export class MmsProject {
 			// project is owner
 			if(si_project === g_element.ownerId && 'Package' === g_element.type) {
 				// do not compare special elements
-				if('Holding Bin' === g_element.name && 'View Instances Bin' === g_element.name) {
+				if('Holding Bin' === g_element.name || 'View Instances Bin' === g_element.name) {
 					continue;
 				}
 			}

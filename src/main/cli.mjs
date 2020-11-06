@@ -83,13 +83,13 @@ const load_mms_project_json = pr_file => new Promise((fk_resolve, fe_reject) => 
 		JsonPick.withParser({filter:'elements'}),
 		new JsonStreamArray(),
 	], (e_pipe) => {
-			if(e_pipe) {
-				fe_reject(new Error(`Error while stream parsing project JSON from file ${pr_file}: ${e_pipe.stack}`));
-			}
-			else {
-				fk_resolve(h_elements);
-			}
-		});
+		if(e_pipe) {
+			fe_reject(new Error(`Error while stream parsing project JSON from file ${pr_file}: ${e_pipe.stack}`));
+		}
+		else {
+			fk_resolve(h_elements);
+		}
+	});
 
 	ds_pipeline.on('data', ({value:g_element}) => {
 		h_elements[g_element.id] = g_element;
@@ -255,6 +255,9 @@ y_yargs = y_yargs.command({
 		// load refs
 		const h_refs = await k_mms.refs();
 
+		// mkdir ./baselines
+		fs.mkdirSync('baselines', {recursive:true});
+
 		// number of baselines specified or all baselines by default
 		let n_max_baselines = g_argv.baselines;
 		if(0 !== n_max_baselines) {
@@ -271,9 +274,6 @@ y_yargs = y_yargs.command({
 
 			// use default stream
 			const a_history = Object.values(h_histories)[0];
-
-			// mkdir ./baselines
-			fs.mkdirSync('baselines', {recursive:true});
 
 			// optimization to speed up delta loading
 			let g_previous;
@@ -494,6 +494,18 @@ y_yargs = y_yargs.command({
 				});
 
 				console.timeEnd('select');
+
+				// iterate over existing indexed compartments
+				for(const g_compartment of g_body_pers.persistedModelCompartments) {
+					const p_compartment_old = g_compartment.compartmentURI;
+
+					// compartment already indexed, do not redo
+					if(p_compartment_old === p_compartment) {
+						console.warn(`compartment '${p_compartment}' is already indexed.`);
+						process.exit(0);
+					}
+				}
+
 				console.warn(`loading new compartment into persistent index...`);
 				console.time('persistent');
 
