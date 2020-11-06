@@ -556,10 +556,18 @@ y_yargs = y_yargs.command({
 
 					// mopid match
 					if(p_compartment_old.startsWith(s_compartment_start) && p_compartment !== p_compartment_old) {
-						// delete it
+						// figure out which indices it is loaded into
+						const g_status = await upload(JSON.stringify({
+							compartmentURI: p_compartment_old,
+						}), `${p_server}/api/demo.compartmentIndexStatus`, {
+							method: 'POST',
+							headers: h_headers_iqs,
+						});
+
+						// delete them
 						await upload(JSON.stringify({
 							modelCompartment: {compartmentURI:p_compartment_old},
-							indexes: ['persistent', 'inmemory', 'elasticSearch', 'neptune'],
+							indexes: g_status.indices,
 						}), `${p_server}/api/demo.deleteModelCompartment`, {
 							method: 'POST',
 							headers: h_headers_iqs,
