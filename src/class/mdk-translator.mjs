@@ -85,8 +85,10 @@ export class MdkTranslator {
 		this._hv3_trips = this._kd_project._h_quad_tree['*'];
 
 		// c1 prefixed helper
-		this._f_c1p = sc1 => c1(sc1, this._h_prefixes);
-		this._f_c1pv = sc1 => c1(sc1, this._h_prefixes).concise();
+		const h_prefixes = this._h_prefixes;
+		this._f_c1p = sc1 => c1(sc1, h_prefixes);
+		this._f_c1pc = sc1 => c1(sc1, h_prefixes).concise(h_prefixes);
+		this._f_c1pv = sc1 => c1(sc1, h_prefixes).concise();
 
 		// load properties
 		this._load_properties();
@@ -186,7 +188,7 @@ export class MdkTranslator {
 
 			// set value type
 			const as_value_types = h_probs[SV1_OSLC_VALUE_TYE];
-			g_def.value_type = as_value_types? c1p(first(as_value_types)): null;
+			g_def.value_type = as_value_types? first(as_value_types): null;
 
 			// save to schema
 			h_schema_props[sv1_prop] = g_def;

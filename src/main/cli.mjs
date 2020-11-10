@@ -177,8 +177,12 @@ y_yargs = y_yargs.command({
 				describe: 'number of times to retry failed DNG authentication',
 			},
 			'use-folders': {
-				describe: `use the 'folders' workaround to fetch all artifacts for a large project`,
 				type: 'boolean',
+				describe: `use the 'folders' workaround to fetch all artifacts for a large project`,
+			},
+			'dry-run': {
+				type: 'boolean',
+				describe: 'do not make any writes to MMS',
 			},
 		})
 		.help().version(false),
@@ -193,6 +197,7 @@ y_yargs = y_yargs.command({
 			if(g_argv.baselines) a_args.push(...['--baselines', g_argv.baselines+'']);
 			if(g_argv.authRetries) a_args.push(...['--auth-retries', g_argv.authRetries+'']);
 			if(g_argv.useFolders) a_args.push(...['--use-folders']);
+			if(g_argv.dryRun) a_args.push(...['--dry-run']);
 
 			const u_sub = fork(filename(import.meta), ['sync', ...a_args], {
 				cwd: pd_root,
@@ -250,7 +255,9 @@ y_yargs = y_yargs.command({
 		const k_mms = new MmsProject(gc_action);
 
 		// ensure project exists, new one created
-		await k_mms.create(g_argv.reset);
+		if(!g_argv.dryRun) {
+			await k_mms.create(g_argv.reset);
+		}
 
 		// load refs
 		const h_refs = await k_mms.refs();
@@ -309,7 +316,9 @@ y_yargs = y_yargs.command({
 					const h_elements_baseline = await load_baseline(k_dng, g_baseline, gc_action);
 
 					// apply deltas
-					await k_mms.apply_deltas(h_elements_previous, h_elements_baseline, 'master');
+					if(!g_argv.dryRun) {
+						await k_mms.apply_deltas(h_elements_previous, h_elements_baseline, 'master');
+					}
 
 					// set previous
 					g_previous = {
@@ -326,11 +335,15 @@ y_yargs = y_yargs.command({
 					const p_json_baseline = await baseline_json_path(k_dng, g_baseline, gc_action);
 
 					// serialize in full to mms
-					await k_mms.upload_json_stream(fs.createReadStream(p_json_baseline), 'master');
+					if(!g_argv.dryRun) {
+						await k_mms.upload_json_stream(fs.createReadStream(p_json_baseline), 'master');
+					}
 				}
 
 				// tag current HEAD as baseline
-				await k_mms.tag_head_as_baseline(g_baseline, 'master');
+				if(!g_argv.dryRun) {
+					await k_mms.tag_head_as_baseline(g_baseline, 'master');
+				}
 			}
 		}
 		// skip baselines
@@ -349,7 +362,9 @@ y_yargs = y_yargs.command({
 			const h_elements_latest = await load_baseline(k_dng, {id:si_latest}, gc_action);
 
 			// apply deltas
-			await k_mms.apply_deltas(h_elements_mms, h_elements_latest, 'master');
+			if(!g_argv.dryRun) {
+				await k_mms.apply_deltas(h_elements_mms, h_elements_latest, 'master');
+			}
 		}
 	},
 });

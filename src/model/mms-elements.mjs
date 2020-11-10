@@ -17,6 +17,14 @@ const H_TYPES = {
 	null: null,
 };
 
+const as_warn_once = new Set();
+function warn_once(s_message) {
+	if(!as_warn_once.has(s_message)) {
+		as_warn_once.add(s_message);
+		console.warn(cherr.yellow(s_message));
+	}
+}
+
 export class Thing {
 	constructor(k_factory, si_self, si_owner) {
 		this._k_factory = k_factory;
@@ -268,7 +276,7 @@ export class Class extends Element {
 
 		// check type
 		if('relation' === s_type) {
-			console.warn(cherr.yellow(`serializing experimental relation bag for ${s_key}`));
+			warn_once(`serializing experimental relation bag for ${s_key}`);
 
 			for(let i_value=0, nl_values=a_values_in.length; i_value<nl_values; i_value++) {
 				this.add_relation(s_key+'_'+i_value, s_label, a_values_in[i_value]);

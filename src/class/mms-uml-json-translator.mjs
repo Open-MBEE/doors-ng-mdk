@@ -65,73 +65,101 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 		// direct literal
 		switch(sc1_value_type) {
 			case 'xsd:integer': {
-				return {
+				return [{
 					type: 'integer',
 					values: a_objects.map(sv1_object => +c1(sv1_object).value),
-				};
+				}];
 			}
 
 			case 'xsd:double': {
-				return {
+				return [{
 					type: 'real',
 					values: a_objects.map(sv1_object => +c1(sv1_object).value),
-				};
+				}];
 			}
 
 			case 'xsd:boolean': {
-				return {
+				return [{
 					type: 'boolean',
 					values: a_objects.map(sv1_object => /true/i.test(c1(sv1_object).value)),
-				};
+				}];
 			}
 
 			case 'xsd:string': {
-				return {
+				return [{
 					type: 'string',
 					values: a_objects.map(sv1_object => c1(sv1_object).value),
-				};
+				}];
 			}
 
 			case 'xsd:dateTime': {
-				return {
+				return [{
 					type: 'string',
 					values: a_objects.map((sv1_object) => {
 						return (new Date(c1(sv1_object).value)).toISOString();
 					}),
-				};
+				}];
 			}
 
 			default: break;
 		}
 
-		const a_ranges = all(as_ranges).map(this._f_c1p);
+		const a_ranges = all(as_ranges).map(this._f_c1pc);
 
 		// range includes requirement
 		if(a_ranges.includes('oslc_rm:Requirement')) {
-			return {
-				type: 'relation',
-				value: a_objects.map((sv1_object) => {
-					const kt_object = c1(sv1_object);
+			const a_reqs = [];
+			const a_links = [];
 
-					// assert object term type
-					if(!kt_object.isNamedNode) throw new Error(`expected range type IRI but found '${kt_object}'`);
+			// each object
+			for(const sv1_object of a_objects) {
+				const kt_object = c1(sv1_object);
 
-					// convert to element id
-					return this._k_factory.uri_to_element(kt_object.value);
-				}),
-			};
+				// assert object term type
+				if(!kt_object.isNamedNode) throw new Error(`expected range type IRI but found '${kt_object}'`);
+
+				// object URI
+				const p_object = kt_object.value;
+
+				// convert to element id
+				try {
+					a_reqs.push(this._k_factory.uri_to_element(p_object));
+				}
+				// not a requirement
+				catch(e_uri) {
+					a_links.push(kt_object.value);
+				}
+			}
+
+			const a_return = [];
+
+			if(a_reqs.length) {
+				a_return.push({
+					type: 'relation',
+					values: a_reqs,
+				});
+			}
+
+			if(a_links.length) {
+				a_return.push({
+					type: 'string',
+					values: a_links,
+				});
+			}
+
+			return a_return;
 		}
 
 		// exactly one range
 		if(1 === a_ranges.length) {
-			const sc1_range = a_ranges[0].concise(this._h_prefixes);
+			const sc1_range = a_ranges[0];
 
 			// not custom ENUM
 			if(!sc1_range.startsWith('dng_type:')) {
 				switch(sc1_range) {
 					// person
 					case 'foaf:Person': {
-						return {
+						return [{
 							type: 'string',
 							values: a_objects
 								.map((sv1_object) => {
@@ -144,7 +172,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 										return /\/([^/]+)$/.exec(sv1_object)[1];
 									}
 								}),
-						};
+						}];
 					}
 
 					default: {
@@ -155,7 +183,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 		}
 
 		// title-ize
-		return {
+		return [{
 			type: 'string',
 			values: a_objects.map((sv1_object) => {
 				const kt_object = c1(sv1_object);
@@ -169,7 +197,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 					throw new Error(`cannot generate title for ${kt_object.termType}`);
 				}
 			}),
-		};
+		}];
 	}
 
 	translate_artifacts(b_tolerant=this._b_tolerant) {
@@ -311,7 +339,8 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 			let b_allows_zero = xc_multiplicity & XM_MULTIPLICITY_ZERO;
 
 			// prep UML type
-			const g_uml = this._uml_type_for(sc1_value_type, as_ranges, as_objects);
+			const a_types = this._uml_type_for(sc1_value_type, as_ranges, as_objects);
+			const b_multitype = a_types.length > 1;
 
 			// property is missing
 			if(!as_objects) {
@@ -320,7 +349,10 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 
 				// expects many
 				if(b_expects_many) {
-					k_artifact.add_array(g_uml, p_property, s_label_prop);
+					let i_which = 0;
+					for(const g_uml of a_types) {
+						k_artifact.add_array(g_uml, p_property+(b_multitype? '_'+(i_which++): ''), s_label_prop);
+					}
 				}
 				// does not expect many; add null property
 				else {
@@ -329,11 +361,17 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 			}
 			// expects many; add array
 			else if(b_expects_many) {
-				k_artifact.add_array(g_uml, p_property, s_label_prop);
+				let i_which = 0;
+				for(const g_uml of a_types) {
+					k_artifact.add_array(g_uml, p_property+(b_multitype? '_'+(i_which++): ''), s_label_prop);
+				}
 			}
 			// expects exactly one
 			else {
-				k_artifact.add(g_uml, p_property, s_label_prop);
+				let i_which = 0;
+				for(const g_uml of a_types) {
+					k_artifact.add(g_uml, p_property+(b_multitype? '_'+(i_which++): ''), s_label_prop);
+				}
 			}
 
 			// remove property from hash
@@ -364,6 +402,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 							type: 'relation',
 							values: a_objects.map(sv1 => k_factory.uri_to_element(sv1.slice(1))),
 						}, p_property, s_label_prop);
+						continue;
 					}
 					// skip non-RDF
 					else if(/^\/rm\/(process|cm|accessControl)\//.test(p_object_0)) {
