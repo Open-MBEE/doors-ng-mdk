@@ -127,7 +127,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 				}
 				// not a requirement
 				catch(e_uri) {
-					a_links.push(kt_object.value);
+					a_links.push(p_object);
 				}
 			}
 

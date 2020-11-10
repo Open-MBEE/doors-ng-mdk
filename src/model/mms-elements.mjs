@@ -262,6 +262,18 @@ export class Class extends Element {
 	}
 
 	add_array({type:s_type, values:a_values_in}, s_key, s_label) {
+		// relations
+		if('relation' === s_type) {
+			warn_once(`serializing experimental relation bag for ${s_key}`);
+
+			for(let i_value=0, nl_values=a_values_in.length; i_value<nl_values; i_value++) {
+				this.add_relation(s_key+'_'+i_value, s_label, a_values_in[i_value]);
+			}
+
+			return this;
+		}
+
+		// normal attribute
 		const k_attr = this.attribute(s_key, s_label, H_TYPES[s_type]);
 
 		// prep expression container
@@ -273,17 +285,6 @@ export class Class extends Element {
 		});
 
 		delete k_container._h_export.value;
-
-		// check type
-		if('relation' === s_type) {
-			warn_once(`serializing experimental relation bag for ${s_key}`);
-
-			for(let i_value=0, nl_values=a_values_in.length; i_value<nl_values; i_value++) {
-				this.add_relation(s_key+'_'+i_value, s_label, a_values_in[i_value]);
-			}
-
-			return this;
-		}
 
 		// export values
 		for(let i_value=0, nl_values=a_values_in.length; i_value<nl_values; i_value++) {
@@ -348,8 +349,9 @@ export class Class extends Element {
 
 	add_relation(s_key, s_label, si_target) {
 		const si_self = this.id;
-		const si_assoc = sha256_hex(`association:${s_key}:${si_self < si_target? si_self+'.'+si_target: si_target+'.'+si_self}`);
-		const k_assoc = new Association(this._k_factory, si_assoc, s_label, si_target);
+		const [si_member_a, si_member_b] = si_self < si_target? [si_self, si_target]: [si_target, si_self];
+		const si_assoc = sha256_hex(`association:${s_key}:${si_member_a}.${si_member_b}`);
+		const k_assoc = new Association(this._k_factory, si_assoc, s_label, si_member_a, si_member_b);
 		this._a_baggage.push(k_assoc);
 
 		const k_attr = this.attribute(s_key, s_label, si_target);
@@ -365,23 +367,30 @@ export class Class extends Element {
 
 
 export class Association extends Class {
-	constructor(k_factory, si_self, si_owner, si_target) {
+	constructor(k_factory, si_self, si_owner, si_member_a, si_member_b) {
 		super(k_factory, si_self, si_owner);
-		this._si_target = si_target;
+		this._si_member_a = si_member_a;
+		this._si_member_b = si_member_b;
+	}
+
+	get type() {
+		return 'Association';
 	}
 
 	_init() {
 		return {
 			...super._init(),
 			isDerived: false,
-			memberEndIds: [this._si_owner, this._si_target],
 			ownedEndIds: [],
 			navigableOwnedEndIds: [],
 		};
 	}
 
-	get type() {
-		return 'Association';
+	export() {
+		return {
+			...super.export(),
+			memberEndIds: [this._si_member_a, this._si_member_b],
+		};
 	}
 }
 
