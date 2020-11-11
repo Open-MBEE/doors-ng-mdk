@@ -269,7 +269,7 @@ y_yargs = y_yargs.command({
 		let n_max_baselines = g_argv.baselines;
 		if(0 !== n_max_baselines) {
 			// number safety
-			if('number' !== n_max_baselines || Number.isNaN(n_max_baselines)) {
+			if('number' !== typeof n_max_baselines || Number.isNaN(n_max_baselines)) {
 				n_max_baselines = 0;
 			}
 
