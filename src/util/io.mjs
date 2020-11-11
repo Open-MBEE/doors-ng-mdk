@@ -18,6 +18,9 @@ const {
 
 export const hash = s => createHash('sha256').update(s).digest('hex');
 
+// then'able sleep timeout
+export const sleep = xt_sleep => new Promise(fk_resolve => setTimeout(fk_resolve, xt_sleep));
+
 // test if file exists
 export function file_exists(p_file) {
 	// attempt to access file

@@ -26,6 +26,7 @@ const cherr = chalk.stderr;
 import {
 	file_exists,
 	hash,
+	sleep,
 	request,
 	fetch,
 	upload,
@@ -343,6 +344,9 @@ y_yargs = y_yargs.command({
 				// tag current HEAD as baseline
 				if(!g_argv.dryRun) {
 					await k_mms.tag_head_as_baseline(g_baseline, 'master');
+
+					// sleep for 15 seconds while MMS finishes creating branch
+					await sleep(15 * 1000);
 				}
 			}
 		}
@@ -587,6 +591,16 @@ y_yargs = y_yargs.command({
 
 				// load neptune index
 				try {
+					// transform model
+					await upload(JSON.stringify({
+						modelCompartment: {compartmentURI:p_compartment},
+						format: 'RDF_TURTLE',
+					}), `${p_server}/api/persistent-index.transformModelCompartment`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
+
+					// load index
 					await upload(JSON.stringify({
 						modelCompartment: {compartmentURI:p_compartment},
 						format: 'RDF_TURTLE',
