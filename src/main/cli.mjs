@@ -391,6 +391,10 @@ y_yargs = y_yargs.command({
 				type: 'string',
 				demandOption: true,
 			},
+			'use-delta-indexing': {
+				type: 'boolean',
+				describe: `use IncQuery's delta-based indexing when possible`,
+			},
 		})
 		.help().version(false),
 	async handler(g_argv) {
@@ -508,6 +512,9 @@ y_yargs = y_yargs.command({
 					headers: h_headers_iqs,
 				});
 
+				// base compartment to perform delta indexing with
+				let p_compartment_base;
+
 				console.timeEnd('select');
 
 				// iterate over existing indexed compartments
@@ -519,6 +526,9 @@ y_yargs = y_yargs.command({
 						console.warn(`compartment '${p_compartment}' is already indexed.`);
 						process.exit(0);
 					}
+
+					// save base
+					p_compartment_base = p_compartment_old;
 				}
 
 				console.warn(`loading new compartment into persistent index...`);
@@ -529,11 +539,27 @@ y_yargs = y_yargs.command({
 					compartmentURI: p_compartment,
 				});
 
-				// load persistent index
-				await upload(s_payload, `${p_server}/api/persistent-index.indexModelCompartment`, {
-					method: 'POST',
-					headers: h_headers_iqs,
-				});
+				// perform delta index
+				if(p_compartment_base && g_argv.useDeltaIndexing) {
+					await upload(JSON.stringify({
+						baseModelCompartment: {
+							compartmentURI: p_compartment_base,
+						},
+						requiredModelCompartment: {
+							compartmentURI: p_compartment,
+						},
+					}), `${p_server}/api/persistent-index.indexModelCompartmentDelta`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
+				}
+				// load full persistent index
+				else {
+					await upload(s_payload, `${p_server}/api/persistent-index.indexModelCompartment`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
+				}
 
 				console.timeEnd('persistent');
 				console.warn(`loading new compartment into in-memory index...`);

@@ -165,7 +165,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 								.map((sv1_object) => {
 									// user is described in dataset
 									if(sv1_object in this._hv3_trips) {
-										return first(this._hv3_trips[sv1_object][SV1_FOAF_NICK]);
+										return c1(first(this._hv3_trips[sv1_object][SV1_FOAF_NICK])).value;
 									}
 									// for whatever reason, the user was not available/download; infer username from URI
 									else {
