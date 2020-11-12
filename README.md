@@ -17,7 +17,7 @@ All schema-related information about the project, such as the names and object-t
 
 ## Getting Started
 
-There are several ways to get started using this tool. The best approach for most cases is to simply [use the pre-built docker image available from Docker Hub](#install-via-docker-hub).
+There are several ways to get started using this tool. The best approach for most cases is to simply [use the pre-built docker image available from Docker Hub](#install-from-docker-hub).
 
 
 ## Install from Docker Hub
@@ -35,7 +35,7 @@ $ docker pull openmbee/dng-mdk:latest
 **Prepare:**
 Create a file to store configuration and user credentials that the tool will use to connect to Doors NG and MMS:
 
-`.docker-env`:
+For example, in a file called `.docker-env`
 ```bash
 DNG_SERVER=https://jazz.xyz.org
 DNG_USER=user
@@ -150,7 +150,7 @@ Environment Variables:
   MMS_PASS        Password for MMS auth
 ```
 
-For local testing, it is recommended that your create a `.env` file with all the enviornment variables:
+For local testing, it is recommended that your create a `.env` file with all the enviornment variables (docker users skip this step):
 
 For Linux and MacOS:
 ```bash
@@ -186,7 +186,7 @@ Say we have a project on Doors NG entitled "Example Test", and we want to sync i
 $ dng-mdk sync eg/test --project 'Example Test' --malloc 24576 &> eg-test.log
 ```
 
-> Note: This is just an example for processing a very large project; most projects may only need closer to 2 GiB of memory max.
+> Note: This is just an example for processing a very large project; smaller projects will work fine with the default 1.4 GiB if you omit the `--malloc` option.
 
 ### CLI: Trigger
 
