@@ -15,7 +15,8 @@ ENV MMS_USER $mms_user
 ENV MMS_PASS $mms_pass
 ENV MMS_SERVER $mms_server
 
-COPY . .
+COPY . /app
+WORKDIR /app
 RUN npm install
 RUN npm link
 
