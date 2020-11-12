@@ -19,4 +19,4 @@ COPY . .
 RUN npm install
 RUN npm link
 
-ENTRYPOINT "dng-mdk" "$@"
+ENTRYPOINT ["dng-mdk"]

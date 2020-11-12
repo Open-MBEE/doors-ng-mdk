@@ -1,0 +1,6 @@
+.env
+.git/
+data/
+log/
+node_modules/
+scrap/
