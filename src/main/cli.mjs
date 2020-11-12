@@ -288,7 +288,7 @@ y_yargs = y_yargs.command({
 
 			// each baseline in order
 			const nl_baselines = a_history.length;
-			const i_baseline_start = n_max_baselines? Math.min(0, nl_baselines-n_max_baselines): 0;
+			const i_baseline_start = n_max_baselines? Math.max(0, nl_baselines-n_max_baselines): 0;
 			for(let i_baseline=i_baseline_start; i_baseline<nl_baselines; i_baseline++) {
 				const p_baseline = a_history[i_baseline];
 				const g_baseline = h_baselines[p_baseline];
