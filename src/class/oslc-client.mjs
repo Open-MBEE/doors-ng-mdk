@@ -80,6 +80,23 @@ async function SimpleOslcClient$follow(k_self, s_url, w_args={}, w_body='', c_re
 
 const H_ENV = process.env;
 
+function decontextualize_named_node(kt_node) {
+	let d_url_subject;
+	try {
+		d_url_subject = new URL(kt_node.value);
+	}
+	catch(e_parse) {
+		return factory.namedNode(`urn:dng-mdk:invalid-url:${btoa(kt_node.value)}`);
+	}
+
+	if(d_url_subject.searchParams.has(SI_OSLC_CONFIG_CONTEXT)) {
+		d_url_subject.searchParams.delete(SI_OSLC_CONFIG_CONTEXT);
+		return factory.namedNode(d_url_subject.toString());
+	}
+
+	return kt_node;
+}
+
 /**
 * Remove the OSLC config context query parameter from resource URIs in quad
 * @param {Quad} kt_quad - the quad
@@ -93,25 +110,13 @@ export function decontextualize_quad(kt_quad) {
 	} = kt_quad;
 
 	if(kt_subject.isNamedNode) {
-		const d_url_subject = new URL(kt_subject.value);
-		if(d_url_subject.searchParams.has(SI_OSLC_CONFIG_CONTEXT)) {
-			d_url_subject.searchParams.delete(SI_OSLC_CONFIG_CONTEXT);
-			kt_subject = factory.namedNode(d_url_subject.toString());
-		}
+		kt_subject = decontextualize_named_node(kt_subject);
 	}
 
-	const d_url_predicate = new URL(kt_predicate.value);
-	if(d_url_predicate.searchParams.has(SI_OSLC_CONFIG_CONTEXT)) {
-		d_url_predicate.searchParams.delete(SI_OSLC_CONFIG_CONTEXT);
-		kt_predicate = factory.namedNode(d_url_predicate.toString());
-	}
+	kt_predicate = decontextualize_named_node(kt_predicate);
 
 	if(kt_object.isNamedNode) {
-		const d_url_object = new URL(kt_object.value);
-		if(d_url_object.searchParams.has(SI_OSLC_CONFIG_CONTEXT)) {
-			d_url_object.searchParams.delete(SI_OSLC_CONFIG_CONTEXT);
-			kt_object = factory.namedNode(d_url_object.toString());
-		}
+		kt_object = decontextualize_named_node(kt_object);
 	}
 
 	return factory.quad(kt_subject, kt_predicate, kt_object);
