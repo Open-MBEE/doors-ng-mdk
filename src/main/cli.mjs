@@ -195,8 +195,8 @@ y_yargs = y_yargs.command({
 			if(g_argv.sockets) a_args.push(...['--sockets', g_argv.sockets+'']);
 			if(g_argv.requests) a_args.push(...['--requests', g_argv.requests+'']);
 			if(g_argv.reset) a_args.push(...['--reset']);
-			if(g_argv.baselines) a_args.push(...['--baselines', g_argv.baselines+'']);
-			if(g_argv.authRetries) a_args.push(...['--auth-retries', g_argv.authRetries+'']);
+			if('baselines' in g_argv) a_args.push(...['--baselines', g_argv.baselines+'']);
+			if('authRetries' in g_argv) a_args.push(...['--auth-retries', g_argv.authRetries+'']);
 			if(g_argv.useFolders) a_args.push(...['--use-folders']);
 			if(g_argv.dryRun) a_args.push(...['--dry-run']);
 
