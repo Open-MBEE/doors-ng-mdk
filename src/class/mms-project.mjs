@@ -123,6 +123,8 @@ export class MmsProject {
 		this._si_org = gc_mms.mms_project_org;
 		this._si_project = gc_mms.mms_project_id;
 		this._s_project_name = gc_mms.dng_project_name;
+		this._b_safety = false;
+		this._n_batch = 100e2;
 
 		const h_headers = this._h_headers = {
 			...H_HEADERS_JSON,
@@ -143,6 +145,11 @@ export class MmsProject {
 			method: 'GET',
 		};
 
+		this._gc_req_put = {
+			...gc_req,
+			method: 'PUT',
+		};
+
 		this._gc_req_post = {
 			...gc_req,
 			method: 'POST',
@@ -154,13 +161,21 @@ export class MmsProject {
 		};
 	}
 
-	_endpoint_elements(si_ref, b_no_overwrite=false) {
-		return `${this._p_endpoint_refs}/${si_ref}/elements${
-			b_no_overwrite
-				? ''
-				: '?'+new URLSearchParams({
-					overwrite: true,
-				})}`;
+	_endpoint_elements(si_ref, h_query=null) {
+		return `${this._p_endpoint_refs}/${si_ref}/elements${h_query? '?'+new URLSearchParams(h_query): ''}`;
+	}
+
+	_endpoint_element_ids(si_ref, h_query=null) {
+		return `${this._p_endpoint_refs}/${si_ref}/elementIds${h_query? '?'+new URLSearchParams(h_query): ''}`;
+	}
+
+
+	/**
+	* Fetch the version of MMS from the server
+	* @returns {Promise<string>} - the semver string
+	*/
+	async mms_version() {
+		return (await fetch(`${this._p_endpoint_service}/mmsversion`, this._gc_req_get)).mmsVersion;
 	}
 
 
@@ -253,7 +268,7 @@ export class MmsProject {
 		// deletions
 		if(a_deleted.length) {
 			const ds_delete = new stream.PassThrough();
-			const dp_upload = upload(ds_delete, this._endpoint_elements(si_ref), this._gc_req_delete);
+			const dp_upload = upload(ds_delete, this._endpoint_elements(si_ref, {overwrite:true}), this._gc_req_delete);
 
 			ds_delete.write(/* syntax: json */ `{"elements":[`);
 			let i_element = 0;
@@ -269,7 +284,7 @@ export class MmsProject {
 		// additions
 		if(a_added.length) {
 			const ds_add = new stream.PassThrough();
-			const dp_upload = upload(ds_add, this._endpoint_elements(si_ref), this._gc_req_post);
+			const dp_upload = upload(ds_add, this._endpoint_elements(si_ref, {overwrite:true}), this._gc_req_post);
 
 			ds_add.write(/* syntax: json */ `{"elements":[`);
 			let i_element = 0;
@@ -297,7 +312,7 @@ export class MmsProject {
 	* @returns {void}
 	*/
 	async upload_json_stream(ds_upload, si_ref='master') {
-		return await upload(ds_upload, this._endpoint_elements(si_ref), this._gc_req_post);
+		return await upload(ds_upload, this._endpoint_elements(si_ref, {overwrite:true}), this._gc_req_post);
 	}
 
 
@@ -327,6 +342,59 @@ export class MmsProject {
 		}), this._p_endpoint_refs, this._gc_req_post);
 	}
 
+	/**
+	* Enable safety mechanism when fetching all elements
+	* @returns {void}
+	*/
+	enable_safety() {
+		this._b_safety = true;
+	}
+
+
+	async _fetch_project(si_ref) {
+		// safety enabled
+		if(this._b_safety) {
+			// fetch all element ids
+			const g_preload = await fetch(this._endpoint_element_ids(si_ref), this._gc_req_get);
+
+			// destructure
+			const {
+				commitId: si_commit,
+				elements: a_elements,
+			} = g_preload;
+
+			// more than BATCH elements
+			const n_batch = this._n_batch;
+			const nl_elements = a_elements.length;
+			if(nl_elements > n_batch) {
+				// project elements
+				let a_project = [];
+
+				// approx 1.75 KiB per element, 2 GiB max payload
+				// batch into 100k elements per request
+				for(let i_slice=0; i_slice<nl_elements; i_slice+=n_batch) {
+					// select batch
+					const a_chunk = g_preload.elements.slice(i_slice, i_slice+n_batch);
+
+					// get elements in batch
+					const g_response = await upload({
+						elements: a_chunk,
+					}, this._endpoint_elements(si_ref), this._gc_req_put);
+
+					// update concat
+					a_project = a_project.concat(g_response.elements);
+				}
+
+				// reconstruct payload
+				return {
+					elements: a_project,
+				};
+			}
+		}
+
+		// get all elements
+		await fetch(this._endpoint_elements(si_ref), this._gc_req_get);
+	}
 
 	/**
 	* Load the entire contents of an MMS project into memory
@@ -335,7 +403,7 @@ export class MmsProject {
 	*/
 	async load(si_ref='master') {
 		const si_project = this._si_project;
-		const g_project = await fetch(this._endpoint_elements(si_ref, true), this._gc_req_get);
+		const g_project = await this._fetch_project(si_ref);
 		const a_elements = g_project.elements;
 
 		// prep output hash
