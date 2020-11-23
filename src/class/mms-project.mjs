@@ -124,7 +124,7 @@ export class MmsProject {
 		this._si_project = gc_mms.mms_project_id;
 		this._s_project_name = gc_mms.dng_project_name;
 		this._b_safety = false;
-		this._n_batch = 100e2;
+		this._n_batch = 100e3;
 
 		const h_headers = this._h_headers = {
 			...H_HEADERS_JSON,
