@@ -80,13 +80,13 @@ export function fetch(p_url, gc_request, f_connected=null) {
 					ds_res,
 					JsonStreamObject.withParser(),
 				], (e_pipe) => {
-						if(e_pipe) {
-							throw new Error(`Error while streaming parsing response JSON from <${p_url}>: ${e_pipe.stack}`);
-						}
-						else {
-							fk_resolve(g_json);
-						}
-					});
+					if(e_pipe) {
+						throw new Error(`Error while streaming parsing response JSON from <${p_url}>: ${e_pipe.stack}`);
+					}
+					else {
+						fk_resolve(g_json);
+					}
+				});
 
 				// response json object
 				ds_pipe.on('data', ({key:si_key, value:w_value}) => {

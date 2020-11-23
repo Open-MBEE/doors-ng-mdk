@@ -65,13 +65,13 @@ function stream_baseline_histories(h_baselines, h_streams) {
 		}
 	}
 
-	const p_stream = g_root.bos;
-
 	if(!g_root) {
-		console.warn(`No inherent root baseline found for stream <${p_stream}>`);
+		console.warn(`No inherent root baseline found for streams ${Object.keys(h_streams).map(s => `<${s}>`).join(', ')}`);
 		return Object.values(h_baselines)
 			.sort((g_a, g_b) => (new Date(g_a)).created - (new Date(g_b)).created);
 	}
+
+	const p_stream = g_root.bos;
 
 	// generate history
 	const a_history = [];

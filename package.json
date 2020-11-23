@@ -1,6 +1,6 @@
 {
   "name": "dng-mdk",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Doors NG Model Development Kit",
   "repository": {
     "type": "git",
@@ -33,10 +33,10 @@
     "cli-select": "^1.1.2",
     "cookie-manager": "0.0.19",
     "dirname-filename-esm": "^1.0.2",
-    "jsonld-streaming-parser": "^2.1.1",
+    "jsonld-streaming-parser": "^2.2.0",
     "pino": "^6.7.0",
     "rdfxml-streaming-parser": "^1.4.0",
     "stream-json": "^1.7.1",
-    "yargs": "^16.1.0"
+    "yargs": "^16.1.1"
   }
 }

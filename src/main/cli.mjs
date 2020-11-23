@@ -61,6 +61,8 @@ const H_HEADERS_JSON = {
 	'Content-Type': 'application/json',
 };
 
+// official semver regex <https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string>
+const R_SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 
 // parse mms org/project string
 function project_dir(s_mms) {
@@ -181,6 +183,10 @@ y_yargs = y_yargs.command({
 				type: 'boolean',
 				describe: `use the 'folders' workaround to fetch all artifacts for a large project`,
 			},
+			'mms-safety': {
+				type: 'boolean',
+				describe: 'enable a safety mechanism that attempts to use batching when getting all elements from MMS',
+			},
 			'dry-run': {
 				type: 'boolean',
 				describe: 'do not make any writes to MMS',
@@ -198,6 +204,7 @@ y_yargs = y_yargs.command({
 			if('baselines' in g_argv) a_args.push(...['--baselines', g_argv.baselines+'']);
 			if('authRetries' in g_argv) a_args.push(...['--auth-retries', g_argv.authRetries+'']);
 			if(g_argv.useFolders) a_args.push(...['--use-folders']);
+			if(g_argv.mmsSafety) a_args.push(...['--mms-safety']);
 			if(g_argv.dryRun) a_args.push(...['--dry-run']);
 
 			const u_sub = fork(filename(import.meta), ['sync', ...a_args], {
@@ -258,6 +265,37 @@ y_yargs = y_yargs.command({
 		// ensure project exists, new one created
 		if(!g_argv.dryRun) {
 			await k_mms.create(g_argv.reset);
+		}
+
+		// prep safety flag
+		let b_use_safety = false;
+
+		// MMS safety is enabled
+		if(g_argv.mmsSafety) {
+			SEMVER_CHECK: {
+				// check what version of MMS is running
+				const s_version = await k_mms.mms_version();
+				const [, s_major, s_minor, s_patch] = R_SEMVER.exec(s_version);
+
+				// v3.*.*
+				if('3' === s_major) {
+					let n_minor = +s_minor;
+					let n_patch = +s_patch;
+
+					// supports elementIds endpoint; enable safety
+					if(4 === n_minor && n_patch >= 3) {
+						b_use_safety = true;
+						break SEMVER_CHECK;
+					}
+				}
+
+				console.warn(`WARNING: v${s_version} does not support `);
+			}
+		}
+
+		// use safety
+		if(b_use_safety) {
+			k_mms.enable_safety();
 		}
 
 		// load refs
