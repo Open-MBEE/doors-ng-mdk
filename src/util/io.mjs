@@ -104,7 +104,7 @@ export function fetch(p_url, gc_request, f_connected=null) {
 				// pbscure sensitive credentials
 				const gc_request_view = {...gc_request};
 				const h_headers_view = gc_request_view.headers;
-				if(h_headers_view.Authorization) {
+				if(h_headers_view?.Authorization) {
 					h_headers_view.Authorization = h_headers_view.Authorization.replace(/^(Basic\s*)?.*$/, '$1*****');
 				}
 
