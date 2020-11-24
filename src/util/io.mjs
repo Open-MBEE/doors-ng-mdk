@@ -101,7 +101,14 @@ export function fetch(p_url, gc_request, f_connected=null) {
 					s_body += s_chunk;
 				}
 
-				return fe_reject(new Error(`Unexpected response status ${n_status} from <${p_url}> '${ds_res.statusMessage}'; response body: '''\n${s_body}\n'''. Request metadata: ${JSON.stringify(gc_request, null, '\t')}`));
+				// pbscure sensitive credentials
+				const gc_request_view = {...gc_request};
+				const h_headers_view = gc_request_view.headers;
+				if(h_headers_view.Authorization) {
+					h_headers_view.Authorization = h_headers_view.Authorization.replace(/^(Basic\s*)?.*$/, '$1*****');
+				}
+
+				return fe_reject(new Error(`Unexpected response status ${n_status} from <${p_url}> '${ds_res.statusMessage}'; response body: '''\n${s_body}\n'''. Request metadata: ${JSON.stringify(gc_request_view, null, '\t')}`));
 			}
 		});
 	});
