@@ -135,6 +135,19 @@ async function load_baseline(k_dng, g_baseline, gc_action) {
 	return await load_mms_project_json(p_json);
 }
 
+// intercept yargs error handling
+function wrap_handler(f_handler) {
+	return async(...a_args) => {
+		try {
+			await f_handler(...a_args);
+		}
+		catch(e_run) {
+			console.error(e_run);
+			process.exit(1);
+		}
+	};
+}
+
 // parse CLI args
 let y_yargs = yargs(hideBin(process.argv))
 	.usage('dng-mdk <command>');
@@ -193,7 +206,7 @@ y_yargs = y_yargs.command({
 			},
 		})
 		.help().version(false),
-	async handler(g_argv) {
+	handler: wrap_handler(async(g_argv) => {
 		// malloc
 		if(g_argv.malloc) {
 			let a_args = [g_argv.MMS_ORG_PROJECT_ID];
@@ -408,7 +421,7 @@ y_yargs = y_yargs.command({
 				await k_mms.apply_deltas(h_elements_mms, h_elements_latest, 'master');
 			}
 		}
-	},
+	}),
 });
 
 
@@ -439,7 +452,7 @@ y_yargs = y_yargs.command({
 			},
 		})
 		.help().version(false),
-	async handler(g_argv) {
+	handler: wrap_handler(async(g_argv) => {
 		const {
 			job: s_job,
 			server: p_server,
@@ -690,7 +703,7 @@ y_yargs = y_yargs.command({
 				throw new Error(`No such job '${s_job}'`);
 			}
 		}
-	},
+	}),
 });
 
 y_yargs.demandCommand(1, 1)  // eslint-disable-line no-unused-expressions
