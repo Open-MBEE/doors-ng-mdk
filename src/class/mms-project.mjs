@@ -393,7 +393,7 @@ export class MmsProject {
 		}
 
 		// get all elements
-		await fetch(this._endpoint_elements(si_ref), this._gc_req_get);
+		return await fetch(this._endpoint_elements(si_ref), this._gc_req_get);
 	}
 
 	/**
