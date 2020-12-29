@@ -6,6 +6,8 @@ import {URL, URLSearchParams} from 'url';
 import https from 'https';
 import stream from 'stream';
 import {once} from 'events';
+import util from 'util';
+const pipeline = util.promisify(stream.pipeline);
 
 import chalk from 'chalk';
 const cherr = chalk.stderr;
@@ -17,6 +19,10 @@ import {
 	upload,
 } from '../util/io.mjs';
 
+import {
+	JsonStreamValues,
+} from '../util/stream-json.js';
+
 // ref env
 const H_ENV = process.env;
 
@@ -25,6 +31,9 @@ const H_HEADERS_JSON = {
 	'Accept': 'application/json',
 	'Content-Type': 'application/json',
 };
+
+// official semver regex <https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string>
+const R_SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 
 function remove_meta(h_obj) {
 	for(const si_key in h_obj) {
@@ -125,6 +134,7 @@ export class MmsProject {
 		this._s_project_name = gc_mms.dng_project_name;
 		this._b_safety = false;
 		this._n_batch = 100e3;
+		this._g_version = null;
 
 		const h_headers = this._h_headers = {
 			...H_HEADERS_JSON,
@@ -132,7 +142,7 @@ export class MmsProject {
 			'Transfer-Encoding': 'chunked',
 		};
 
-		this._p_endpoint_service = `${this._p_server}/alfresco/service`;
+		this._p_endpoint_service = `${this._p_server}${'MMS_PATH' in process.env? process.env.MMS_PATH: '/alfresco/service'}`;
 		this._p_endpoint_project = `${this._p_endpoint_service}/projects/${this._si_project}`;
 		this._p_endpoint_refs = `${this._p_endpoint_project}/refs`;
 
@@ -161,21 +171,29 @@ export class MmsProject {
 		};
 	}
 
-	_endpoint_elements(si_ref, h_query=null) {
-		return `${this._p_endpoint_refs}/${si_ref}/elements${h_query? '?'+new URLSearchParams(h_query): ''}`;
+	_endpoint_ref(s_endpoint, si_ref, h_query=null) {
+		return `${this._p_endpoint_refs}/${si_ref}/${s_endpoint}${h_query? '?'+new URLSearchParams(h_query): ''}`;
 	}
-
-	_endpoint_element_ids(si_ref, h_query=null) {
-		return `${this._p_endpoint_refs}/${si_ref}/elementIds${h_query? '?'+new URLSearchParams(h_query): ''}`;
-	}
-
 
 	/**
 	* Fetch the version of MMS from the server
 	* @returns {Promise<string>} - the semver string
 	*/
 	async mms_version() {
-		return (await fetch(`${this._p_endpoint_service}/mmsversion`, this._gc_req_get)).mmsVersion;
+		if(this._g_version) return this._g_version;
+
+		const s_semver = (await fetch(`${this._p_endpoint_service}/mmsversion`, this._gc_req_get)).mmsVersion;
+
+		const [, s_major, s_minor, s_patch] = R_SEMVER.exec(s_semver);
+
+		return this._g_version = {
+			semver: s_semver,
+			major: +s_major,
+			minor: +s_minor,
+			get patch() {
+				return +s_patch;
+			},
+		};
 	}
 
 
@@ -209,15 +227,24 @@ export class MmsProject {
 		if(b_create) {
 			console.time('create');
 
+			// fetch version info
+			const g_version = await this.mms_version();
+
 			// create project
 			await upload(JSON.stringify({
 				projects: [{
-					type: 'Project',
+					...(g_version.major >= 4
+						? {
+							schema: 'default',
+						}
+						: {
+							type: 'Project',
+						}),
 					orgId: this._si_org,
 					id: this._si_project,
 					name: this._s_project_name.trim().replace(/\s+/g, ' '),
 				}],
-			}), `${this._p_endpoint_service}/orgs/${this._si_org}/projects`, this._gc_req_post);
+			}), `${await this._endpoint_create_project()}`, this._gc_req_post);
 
 			console.timeEnd('create');
 		}
@@ -225,6 +252,15 @@ export class MmsProject {
 		return b_create;
 	}
 
+
+	async _endpoint_create_project() {
+		const g_version = await this.mms_version();
+
+		this._p_endpoint_project_create = this._p_endpoint_service
+			+(g_version.major >= 4
+				? `/projects`
+				:`/orgs/${this._si_org}/projects`);
+	}
 
 	/**
 	* Fetch all refs for the project as a hash
@@ -268,7 +304,7 @@ export class MmsProject {
 		// deletions
 		if(a_deleted.length) {
 			const ds_delete = new stream.PassThrough();
-			const dp_upload = upload(ds_delete, this._endpoint_elements(si_ref, {overwrite:true}), this._gc_req_delete);
+			const dp_upload = upload(ds_delete, this._endpoint_ref('elements', si_ref, {overwrite:true}), this._gc_req_delete);
 
 			ds_delete.write(/* syntax: json */ `{"elements":[`);
 			let i_element = 0;
@@ -284,7 +320,7 @@ export class MmsProject {
 		// additions
 		if(a_added.length) {
 			const ds_add = new stream.PassThrough();
-			const dp_upload = upload(ds_add, this._endpoint_elements(si_ref, {overwrite:true}), this._gc_req_post);
+			const dp_upload = upload(ds_add, this._endpoint_ref('elements', si_ref, {overwrite:true}), this._gc_req_post);
 
 			ds_add.write(/* syntax: json */ `{"elements":[`);
 			let i_element = 0;
@@ -312,7 +348,7 @@ export class MmsProject {
 	* @returns {void}
 	*/
 	async upload_json_stream(ds_upload, si_ref='master') {
-		return await upload(ds_upload, this._endpoint_elements(si_ref, {overwrite:true}), this._gc_req_post);
+		return await upload(ds_upload, this._endpoint_ref('elements', si_ref, {overwrite:true}), this._gc_req_post);
 	}
 
 
@@ -355,7 +391,7 @@ export class MmsProject {
 		// safety enabled
 		if(this._b_safety) {
 			// fetch all element ids
-			const g_preload = await fetch(this._endpoint_element_ids(si_ref), this._gc_req_get);
+			const g_preload = await fetch(this._endpoint_ref('elementIds', si_ref), this._gc_req_get);
 
 			// destructure
 			const {
@@ -379,7 +415,7 @@ export class MmsProject {
 					// get elements in batch
 					const g_response = await upload({
 						elements: a_chunk,
-					}, this._endpoint_elements(si_ref), this._gc_req_put);
+					}, this._endpoint_ref('elements', si_ref), this._gc_req_put);
 
 					// update concat
 					a_project = a_project.concat(g_response.elements);
@@ -392,8 +428,36 @@ export class MmsProject {
 			}
 		}
 
+		// mms4
+		const g_version = await this.mms_version();
+		if(g_version.major >= 4) {
+			const ds_res = await request(this._endpoint_ref('elements', si_ref), {
+				...this._gc_req_get,
+				headers: {
+					...this._gc_req_get.headers,
+					Accept: 'application/x-ndjson',
+				},
+			});
+
+			const a_elements = [];
+			await pipeline([
+				ds_res,
+				JsonStreamValues.withParser(),
+				new stream.Writable({
+					objectMode: true,
+					write({value:w_element}) {
+						a_elements.push(w_element);
+					},
+				}),
+			]);
+
+			return {
+				elements: a_elements,
+			};
+		}
+
 		// get all elements
-		return await fetch(this._endpoint_elements(si_ref), this._gc_req_get);
+		return await fetch(this._endpoint_ref('elements', si_ref), this._gc_req_get);
 	}
 
 	/**
