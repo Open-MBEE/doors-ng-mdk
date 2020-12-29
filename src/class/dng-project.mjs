@@ -46,6 +46,7 @@ const SV1_DCT_DESCRIPTION = c1v('dct:description');
 const SV1_OSLC_CONFIG_OVERRIDES = c1v('oslc_config:overrides');
 const SV1_OSLC_CONFIG_PREVIOUS_BASELINE = c1v('oslc_config:previousBaseline');
 const SV1_OSLC_CONFIG_BASELINE_OF_STREAM = c1v('oslc_config:baselineOfStream');
+const SV1_OSLC_CONFIG_BASELINES = c1v('oslc_config:baselines');
 const SV1_OSLC_CONFIG_STREAMS = c1v('oslc_config:streams');
 
 const SV1_OSLC_CONFIG_BASELINE = c1v('oslc_config:Baseline');
@@ -136,7 +137,6 @@ export class DngProject {
 
 		// collect root services
 		const ds_root_services = await k_client.root_services();
-
 		// each root service
 		const h_projects = {};
 		for await(let p_service of ds_root_services) {
@@ -440,9 +440,14 @@ export class DngProject {
 		let c_streams_deleted = 0;
 		let c_baselines = 0;
 
-		// load metadata for all baselines and streams
-		for(const sv1_config of kd_configs._h_quad_tree['*']['>'+p_configs][SV1_RDFS_MEMBER]) {
+		const load_stream_or_baseline = async(sv1_config) => {
 			const p_config = sv1_config.slice(1);
+
+			// already loaded
+			if(p_config in h_baselines || p_config in h_streams) {
+				console.warn(`skipping already loaded config <${p_config}>`);
+				return;
+			}
 
 			// load configurations
 			let kd_config;
@@ -457,7 +462,7 @@ export class DngProject {
 				else {
 					throw e_load;
 				}
-				continue;
+				return;
 			}
 
 			// prep probs tree
@@ -488,21 +493,37 @@ export class DngProject {
 				console.warn(cherr.blue(`<${p_config}> Baseline: ${s_title_config}`));
 				c_baselines += 1;
 			}
-			// // streams
-			// else if(as_types.has(SV1_OSLC_CONFIG_STREAM)) {
-			// 	h_streams[p_config] = {
-			// 		id: firstv(SV1_DCT_IDENTIFIER),
-			// 		uri: p_config,
-			// 		title: s_title_config,
-			// 		created: firstv(SV1_DCT_CREATED),
-			// 		creator: firstv(SV1_DCT_CREATOR),
-			// 		description: firstv(SV1_DCT_DESCRIPTION),
-			// 	};
-			// 	console.warn(cherr.green(`<${p_config}> Stream: ${s_title_config}`));
-			// 	c_streams += 1;
-			// }
+			// streams
+			else if(as_types.has(SV1_OSLC_CONFIG_STREAM)) {
+				// save stream
+				h_streams[p_config] = {
+					id: firstv(SV1_DCT_IDENTIFIER),
+					uri: p_config,
+					title: s_title_config,
+					created: firstv(SV1_DCT_CREATED),
+					creator: firstv(SV1_DCT_CREATOR),
+				};
+				console.warn(cherr.green(`<${p_config}> Stream: ${s_title_config}`));
+				c_streams += 1;
+
+				// // loop through its baselines
+				// const as_baselines = hv2_probs_config[SV1_OSLC_CONFIG_BASELINES];
+				// for(const sv1_baseline of as_baselines) {
+				// 	await load_stream_or_baseline(sv1_baseline);
+				// }
+			}
+		};
+
+		// load metadata for all baselines and streams
+		for(const sv1_config of kd_configs._h_quad_tree['*']['>'+p_configs][SV1_RDFS_MEMBER]) {
+			await load_stream_or_baseline(sv1_config);
 		}
 		console.warn(`${c_baselines} baselines; ${c_streams} streams; ${c_streams_deleted} deleted streams`);
+
+		// no baselines
+		if(!c_baselines) {
+			return;
+		}
 
 		// produce history for default stream
 		const h_histories = stream_baseline_histories(h_baselines, h_streams);
