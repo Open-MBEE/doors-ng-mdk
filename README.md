@@ -13,6 +13,8 @@ All schema-related information about the project, such as the names and object-t
      - [build docker image](#build-docker-image)
  - [CLI Usage](#cli)
    - [`sync` command](#cli-sync)
+   - [`inspect` command](#cli-inspect)
+   - [`translate` command](#cli-translate)
    - [`trigger` command](#cli-trigger)
 
 ## Getting Started
@@ -187,6 +189,26 @@ $ dng-mdk sync eg/test --project 'Example Test' --malloc 24576 &> eg-test.log
 ```
 
 > Note: This is just an example for processing a very large project; smaller projects will work fine with the default 1.4 GiB if you omit the `--malloc` option.
+
+### CLI: Inspect
+
+Use `dng-mdk inspect --help` for the latest documentation about this command's options.
+
+This command allows you to inspect the RDF of a Doors NG resource, pretty-printed as Turtle.
+
+```console
+$ dng-mdk inspect https://jazz.xyz.org/rm/resources/_hiuEHUDF89asjAI3
+```
+
+### CLI: Translate
+
+Use `dng-mdk translate --help` for the latest documentation about this command's options.
+
+This command allows you to translate an RDF export of a Doors NG project into its UML+JSON representation.
+
+```console
+$ dng-mdk translate  < exported.ttl  > translated.json
+```
 
 ### CLI: Trigger
 
