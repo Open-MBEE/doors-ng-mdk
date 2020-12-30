@@ -10,10 +10,15 @@ import {
 
 import H_PREFIXES from '../common/prefixes.mjs';
 
+// eslint-disable-next-line no-console
+const d_console = new console.Console({
+	stdout: process.stderr,
+});
+
 export async function dng_translate(gc_translate) {
 	// verbose
-	console.log('loading dataset into memory...');
-	console.time('load');
+	d_console.warn('loading dataset into memory...');
+	d_console.time('load');
 
 	// prep project dataset
 	const kd_project = FastDataset();
@@ -37,9 +42,9 @@ export async function dng_translate(gc_translate) {
 	]);
 
 	// perf
-	console.timeEnd('load');
-	console.log('translating...');
-	console.time('translate');
+	d_console.timeEnd('load');
+	d_console.log('translating...');
+	d_console.time('translate');
 
 	// create translator
 	const k_translator = new MmsUmlJsonTranslator({
@@ -52,11 +57,14 @@ export async function dng_translate(gc_translate) {
 	// translate artifacts
 	k_translator.translate_artifacts(true);
 
+	// translate modules
+	k_translator.translate_modules();
+
 	// close output
 	await k_translator.end();
 
 	// done
-	console.timeEnd('translate');
+	d_console.timeEnd('translate');
 }
 
 export default dng_translate;
