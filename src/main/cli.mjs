@@ -9,6 +9,12 @@ import {filename} from 'dirname-filename-esm';
 import {once} from 'events';
 import {pipeline} from 'stream';
 
+import TurtleWriter from '@graphy/content.ttl.write';
+
+import {
+	SimpleOslcClient,
+} from '../class/oslc-client.mjs';
+
 import StreamJson from '../util/stream-json.js';
 const {
 	JsonPick,
@@ -201,6 +207,10 @@ y_yargs = y_yargs.command({
 				type: 'boolean',
 				describe: 'do not make any writes to MMS',
 			},
+			'crawl-depth': {
+				type: 'number',
+				describe: 'limits number of hops to make from each requirement while crawling a project',
+			},
 		})
 		.help().version(false),
 	handler: wrap_handler(async(g_argv) => {
@@ -255,6 +265,7 @@ y_yargs = y_yargs.command({
 			dng_project_name: g_argv.project,
 			dng_use_folders: g_argv.useFolders,
 			dng_auth_retries: g_argv.authRetries || 3,
+			dng_crawl_depth: g_argv.crawlDepth || 3,
 			local_project_dir: pd_project,
 			mms_server: H_ENV.MMS_SERVER,
 			mms_project_org: si_mms_org,
@@ -427,6 +438,99 @@ y_yargs = y_yargs.command({
 				await k_mms.apply_deltas(h_elements_mms, h_elements_latest, 'master');
 			}
 		}
+	}),
+});
+
+
+// 'inspect' command
+y_yargs = y_yargs.command({
+	command: 'inspect <RESOURCE_URL>',
+	describe: 'dump the RDF of a DOORS NG resource',
+	builder: _yargs => _yargs
+		.usage('dng-mdk inspect RESOURCE_URL [OPTIONS]')
+		.positional('RESOURCE_URL', {
+			type: 'string',
+			describe: 'URL to the resource',
+		})
+		.options()
+		.help().version(false),
+	handler: wrap_handler(async(g_argv) => {
+		// simple client
+		const k_client = new SimpleOslcClient();
+
+		// update prefixes
+		const h_prefixes = k_client._h_prefixes;
+
+		// authenticate
+		await k_client.authenticate(5);
+
+		// load into memory
+		const kd_resource = await k_client.load(g_argv.RESOURCE_URL);
+
+		// create ttl writer
+		const ds_writer = new TurtleWriter({
+			prefixes: h_prefixes,
+		});
+
+		// write to stdout
+		ds_writer.pipe(process.stdout);
+
+		// dump dataset to ttl
+		ds_writer.write({
+			type: 'c3',
+			value: kd_resource._h_quad_tree['*'],
+		});
+	}),
+});
+
+
+// 'translate' command
+y_yargs = y_yargs.command({
+	command: 'translate',
+	describe: 'translate the Turtle data on stdin to UML+JSON',
+	builder: _yargs => _yargs
+		.usage('dng-mdk translate --project <DNG_PROJECT_NAME>  < input.ttl  > output.json')
+		.options({
+			project: {
+				describe: 'full name of the project on DNG, case-sensitive',
+				demandOption: true,
+				type: 'string',
+			},
+		})
+		.help().version(false),
+	handler: wrap_handler(async(g_argv) => {
+		// dng server
+		let p_server_dng = H_ENV.DNG_SERVER;
+		{
+			if(!p_server_dng) {
+				throw new Error(`Must provide a DNG server URL via env var 'DNG_SERVER'`);
+			}
+			p_server_dng = (new URL(p_server_dng)).origin;
+
+			// dng creds
+			if(!H_ENV.DNG_USER || !H_ENV.DNG_PASS) {
+				throw new Error(`Missing one of or both required environment variables: 'DNG_USER', 'DNG_PASS`);
+			}
+		}
+
+		// prep action config
+		const gc_action = {
+			dng_server: p_server_dng,
+			dng_project_name: g_argv.project,
+		};
+
+		// init dng project
+		const k_dng = new DngProject(gc_action);
+
+		// dng project info
+		Object.assign(gc_action, await k_dng.info());
+
+		// translate dataset into UML+JSON
+		await dng_translate({
+			...gc_action,
+			local_exported: process.stdin,
+			local_adds: process.stdout,
+		});
 	}),
 });
 

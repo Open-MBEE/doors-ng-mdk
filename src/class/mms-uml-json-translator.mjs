@@ -25,6 +25,7 @@ const SV1_DCT_TITLE = c1v('dct:title');
 const SV1_RDF_PREDICATE = c1v('rdf:predicate');
 const SV1_RDF_OBJECT = c1v('rdf:object');
 
+const SV1_OSLC_RM_USES = c1v('oslc_rm:uses');
 const SV1_OSLC_INSTANCE_SHAPE = c1v('oslc:instanceShape');
 
 
@@ -200,34 +201,31 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 		}];
 	}
 
-	translate_artifacts(b_tolerant=this._b_tolerant) {
+	translate_modules() {
 		const {
 			_kd_project: kd_project,
 			_h_prefixes: h_prefixes,
 			_f_c1p: c1p,
-			_hv3_trips: hv3_trips,
-			_k_factory: k_factory,
-			_ds_out: ds_out,
 		} = this;
 
-		// select all requirements
-		const kd_requirements = kd_project.match(null, KT_RDF_TYPE, c1p('oslc_rm:Requirement', h_prefixes));
+		// select all modules
+		const kd_modules = kd_project.match(null, KT_RDF_TYPE, c1p('jazz_rm:Module', h_prefixes));
 
-		// each requirement
-		for(const kq_req of kd_requirements) {
-			// ref requirement IRI
-			const p_requirement = kq_req.subject.value;
+		// each module
+		for(const kq_mod of kd_modules) {
+			// ref module IRI
+			const p_module = kq_mod.subject.value;
 
 			// translate it
-			this.translate_artifact(p_requirement, b_tolerant);
+			this.translate_module(p_module);
 		}
 	}
 
-	artifact_to_element_id(p_requirement) {
-		return this._k_factory.uri_to_element(p_requirement);
+	translate_module(p_module) {
+		return this._translate_resource(p_module, 'Module');
 	}
 
-	translate_artifact(p_requirement, b_tolerant=this._b_tolerant) {
+	_translate_resource(p_resource, s_type, b_tolerant=false) {
 		const {
 			_h_prefixes: h_prefixes,
 			_f_c1p: c1p,
@@ -237,10 +235,10 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 		} = this;
 
 		// clone probs tree so we can delete visited properties
-		const hv2_probs = Object.assign({}, hv3_trips['>'+p_requirement]);
+		const hv2_probs = Object.assign({}, hv3_trips['>'+p_resource]);
 
 		// de-reify any reified statements of this subject
-		const kd_reified = kd_project.match(null, KT_RDF_SUBJECT, namedNode(p_requirement));
+		const kd_reified = kd_project.match(null, KT_RDF_SUBJECT, namedNode(p_resource));
 		for(const kq_reified of kd_reified) {
 			const hv2_reified = hv3_trips[kq_reified.subject.concise()];
 
@@ -260,10 +258,10 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 			if(!as_shapes) {
 				if(b_tolerant) {
 					// prep element ID
-					const si_element_req = k_factory.uri_to_element(p_requirement);
+					const si_element_req = k_factory.uri_to_element(p_resource);
 
 					// prep requirement title
-					const s_title_req = '(Phantom Artifact)';
+					const s_title_req = `(Phantom ${s_type})`;
 
 					// make artifact instance
 					const k_artifact = k_factory.create_class(si_element_req, s_title_req);
@@ -275,13 +273,13 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 					return;
 				}
 				else {
-					throw new Error(`artifact <${p_requirement}> has no OSLC instance shapes`);
+					throw new Error(`${s_type} resource <${p_resource}> has no OSLC instance shapes`);
 				}
 			}
 
 			// too many shapes
 			if(as_shapes.size > 1) {
-				throw new Error(`artifact <${p_requirement}> has multiple instance shapes: ${[...as_shapes].map(sv1 => '<'+sv1.slice(1)+'>').join(', ')}`);
+				throw new Error(`${s_type} resource <${p_resource}> has multiple instance shapes: ${[...as_shapes].map(sv1 => '<'+sv1.slice(1)+'>').join(', ')}`);
 			}
 		}
 
@@ -293,29 +291,29 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 		{
 			// shape not found
 			if(!g_def_shape) {
-				throw new Error(`artifact <${p_requirement}> refers to instance shape not found in source graph: <${sv1_shape.slice(1)}>`);
+				throw new Error(`${s_type} resource <${p_resource}> refers to instance shape not found in source graph: <${sv1_shape.slice(1)}>`);
 			}
 		}
 
-		// make artifact instance
-		const k_artifact = (() => {
+		// create resource mapper
+		const k_resource = (() => {
 			// prep element ID
-			const si_element_req = k_factory.uri_to_element(p_requirement);
+			const si_element_req = k_factory.uri_to_element(p_resource);
 
-			// prep requirement title
-			const s_title_req = c1p(first(hv2_probs[SV1_DCT_TITLE] || [''])).value;
+			// prep resource title
+			const s_title_mod = c1p(first(hv2_probs[SV1_DCT_TITLE] || [''])).value;
 
 			// remove dct:title from property hash
 			delete hv2_probs[SV1_DCT_TITLE];
 
-			// make artifact instance
-			return k_factory.create_class(si_element_req, s_title_req);
+			// make resource instance
+			return k_factory.create_class(si_element_req, s_title_mod);
 		})();
 
 		// add IRI source
-		k_artifact.add({
+		k_resource.add({
 			type: 'string',
-			values: [p_requirement],
+			values: [p_resource],
 		}, 'source', 'Source');
 
 		// each property in shape def
@@ -351,26 +349,26 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 				if(b_expects_many) {
 					let i_which = 0;
 					for(const g_uml of a_types) {
-						k_artifact.add_array(g_uml, p_property+(b_multitype? '_'+(i_which++): ''), s_label_prop);
+						k_resource.add_array(g_uml, p_property+(b_multitype? '_'+(i_which++): ''), s_label_prop);
 					}
 				}
 				// does not expect many; add null property
 				else {
-					k_artifact.add_null(p_property, s_label_prop);
+					k_resource.add_null(p_property, s_label_prop);
 				}
 			}
 			// expects many; add array
 			else if(b_expects_many) {
 				let i_which = 0;
 				for(const g_uml of a_types) {
-					k_artifact.add_array(g_uml, p_property+(b_multitype? '_'+(i_which++): ''), s_label_prop);
+					k_resource.add_array(g_uml, p_property+(b_multitype? '_'+(i_which++): ''), s_label_prop);
 				}
 			}
 			// expects exactly one
 			else {
 				let i_which = 0;
 				for(const g_uml of a_types) {
-					k_artifact.add(g_uml, p_property+(b_multitype? '_'+(i_which++): ''), s_label_prop);
+					k_resource.add(g_uml, p_property+(b_multitype? '_'+(i_which++): ''), s_label_prop);
 				}
 			}
 
@@ -398,7 +396,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 				if(k_factory.origin_matches(p_object_0)) {
 					// artifact
 					if((new URL(p_object_0)).pathname.startsWith('/rm/resources/')) {
-						k_artifact.add_array({
+						k_resource.add_array({
 							type: 'relation',
 							values: a_objects.map(sv1 => k_factory.uri_to_element(sv1.slice(1))),
 						}, p_property, s_label_prop);
@@ -412,7 +410,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 				}
 
 				// all other cases
-				k_artifact.add_array({
+				k_resource.add_array({
 					type: 'string',
 					values: all(as_objects).map(sv1 => this._resource_title(sv1.slice(1), true)),
 				}, p_property, s_label_prop);
@@ -422,7 +420,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 				warn_once(`wrapping Literal for unmapped property ${sc1_property}${kt_object_0.isDatatyped? ' of type '+kt_object_0.datatype.concise(h_prefixes): ''} as an array of strings`);
 
 				// convert generically
-				k_artifact.add_array({
+				k_resource.add_array({
 					type: 'string',
 					values: a_objects.map(sv1 => c1(sv1).value),
 				}, p_property, s_label_prop);
@@ -434,7 +432,35 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 		}
 
 		// serialize requirement
-		this._ds_out.write(',\n'+k_artifact.dump().map(w => JSON.stringify(w, null, '\t')).join(',\n'));
+		this._ds_out.write(',\n'+k_resource.dump().map(w => JSON.stringify(w, null, '\t')).join(',\n'));
+	}
+
+	translate_artifacts(b_tolerant=this._b_tolerant) {
+		const {
+			_kd_project: kd_project,
+			_h_prefixes: h_prefixes,
+			_f_c1p: c1p,
+		} = this;
+
+		// select all requirements
+		const kd_requirements = kd_project.match(null, KT_RDF_TYPE, c1p('oslc_rm:Requirement', h_prefixes));
+
+		// each requirement
+		for(const kq_req of kd_requirements) {
+			// ref requirement IRI
+			const p_requirement = kq_req.subject.value;
+
+			// translate it
+			this.translate_artifact(p_requirement, b_tolerant);
+		}
+	}
+
+	artifact_to_element_id(p_requirement) {
+		return this._k_factory.uri_to_element(p_requirement);
+	}
+
+	translate_artifact(p_requirement, b_tolerant=this._b_tolerant) {
+		return this._translate_resource(p_requirement, 'Artifact', b_tolerant);
 	}
 
 	async end() {

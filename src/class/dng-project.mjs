@@ -123,6 +123,7 @@ export class DngProject {
 
 		this._s_project_name = gc_dng.dng_project_name;
 		this._n_auth_retries = gc_dng.dng_auth_retries || 0;
+		this._n_crawl_depth = gc_dng.dng_crawl_depth || 3;
 	}
 
 	async info() {
@@ -386,7 +387,7 @@ export class DngProject {
 		// each requirement
 		for(const p_requirement of as_requirements) {
 			// spawn crawler on this requirement
-			a_tasks.push(y_crawler.spawn(p_requirement, 2));
+			a_tasks.push(y_crawler.spawn(p_requirement, this._n_crawl_depth));
 		}
 
 		// begin tasks
