@@ -235,7 +235,7 @@ export class MmsProject {
 				projects: [{
 					...(g_version.major >= 4
 						? {
-							schema: 'default',
+							schema: 'cameo',
 						}
 						: {
 							type: 'Project',
@@ -244,7 +244,7 @@ export class MmsProject {
 					id: this._si_project,
 					name: this._s_project_name.trim().replace(/\s+/g, ' '),
 				}],
-			}), `${await this._endpoint_create_project()}`, this._gc_req_post);
+			}), await this._endpoint_create_project(), this._gc_req_post);
 
 			console.timeEnd('create');
 		}
@@ -256,7 +256,7 @@ export class MmsProject {
 	async _endpoint_create_project() {
 		const g_version = await this.mms_version();
 
-		this._p_endpoint_project_create = this._p_endpoint_service
+		return this._p_endpoint_service
 			+(g_version.major >= 4
 				? `/projects`
 				:`/orgs/${this._si_org}/projects`);
