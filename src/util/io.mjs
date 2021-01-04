@@ -81,7 +81,7 @@ export function fetch(p_url, gc_request, f_connected=null) {
 					JsonStreamObject.withParser(),
 				], (e_pipe) => {
 					if(e_pipe) {
-						throw new Error(`Error while streaming parsing response JSON from <${p_url}>: ${e_pipe.stack}`);
+						fe_reject(new Error(`Error while streaming parsing response JSON from <${p_url}>: ${e_pipe.stack}`));
 					}
 					else {
 						fk_resolve(g_json);
