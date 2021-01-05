@@ -445,8 +445,9 @@ export class MmsProject {
 				JsonStreamValues.withParser(),
 				new stream.Writable({
 					objectMode: true,
-					write({value:w_element}) {
+					write({value:w_element}, s_encoding, fk_write) {
 						a_elements.push(w_element);
+						fk_write();
 					},
 				}),
 			]);

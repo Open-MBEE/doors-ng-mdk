@@ -29,8 +29,9 @@ const P_DCT_TITLE = factory.c1('dct:title', H_PREFIXES).value;
 
 const KT_RDF_TYPE = c1('a');
 const KT_IBM_NAV_PARENT = c1('ibm_nav:parent', H_PREFIXES);
-const KT_OLSC_CONFIG_COMPONENT = c1('oslc_config:component', H_PREFIXES);
+const KT_OSLC_CONFIG_COMPONENT = c1('oslc_config:component', H_PREFIXES);
 const KT_OSLC_CONFIG_CONFIGURATIONS = c1('oslc_config:configurations', H_PREFIXES);
+const KT_OSLC_RM_USES = c1('oslc_rm:uses', H_PREFIXES);
 
 const c1v = sc1 => c1(sc1, H_PREFIXES).concise();
 const all = as => as? [...as]: [];
@@ -124,6 +125,7 @@ export class DngProject {
 		this._s_project_name = gc_dng.dng_project_name;
 		this._n_auth_retries = gc_dng.dng_auth_retries || 0;
 		this._n_crawl_depth = gc_dng.dng_crawl_depth || 3;
+		this._a_modules = gc_dng.dng_modules || [];
 	}
 
 	async info() {
@@ -171,7 +173,7 @@ export class DngProject {
 
 		// grab components
 		const as_components = new Set();
-		for(const kq_comp of kd_project.match(null, KT_OLSC_CONFIG_COMPONENT, null)) {
+		for(const kq_comp of kd_project.match(null, KT_OSLC_CONFIG_COMPONENT, null)) {
 			as_components.add(kq_comp.object.value);
 		}
 
@@ -312,10 +314,40 @@ export class DngProject {
 			}
 		}
 
+		// modules
+		const a_modules = this._a_modules;
+
 		// gather requirements
 		const as_requirements = new Set();
 		GATHER_REQUIREMENTS: {
-			if(gc_export.dng_use_folders) {
+
+			// module selection
+			if(a_modules.length) {
+				// simple client
+				const k_client = new SimpleOslcClient();
+
+				// authenticate
+				await k_client.authenticate(this._n_auth_retries);
+
+				// each module
+				for(const p_module of a_modules) {
+					// load module
+					const kd_module = await k_client.load((new URL(p_module))+'');
+
+					// select artifacts
+					const kd_artifacts = kd_module.match(namedNode(p_module), KT_OSLC_RM_USES, null);
+
+					// each artifact, add to set
+					for(const g_quad of kd_artifacts) {
+						as_requirements.add(g_quad.object.value);
+					}
+				}
+
+				// verbose
+				console.warn(`${as_requirements.size} requirements gathered from ${a_modules.length} module(s)`);
+			}
+			// use folders
+			else if(gc_export.dng_use_folders) {
 				const as_visited = new Set();
 
 				// recursively gather requirments using folder workaround
@@ -379,7 +411,7 @@ export class DngProject {
 		}
 
 		// spawn crawler
-		const y_crawler = new DngCrawler(y_client, n_concurrent_requests, ds_scribe);
+		const y_crawler = new DngCrawler(y_client, n_concurrent_requests, !!a_modules.length, ds_scribe);
 
 		// prep tasks
 		const a_tasks = [];

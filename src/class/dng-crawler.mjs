@@ -56,7 +56,7 @@ const RT_BLACKLIST = new RegExp(''
 
 
 export class DngCrawler {
-	constructor(y_client, n_concurrent_requests, ds_out=process.stdout) {
+	constructor(y_client, n_concurrent_requests, b_filter_resources=false, ds_out=process.stdout) {
 		this._y_client = y_client;
 		this._k_dataset = FastDataset();
 		this._h_cached = {};
@@ -65,6 +65,8 @@ export class DngCrawler {
 		this._ds_out = ds_out;
 		this._k_pool = new AsyncLockPool(n_concurrent_requests);
 		this._p_dng_custom_type = `${this._p_origin}/rm/types/`;
+		this._p_dng_resource = `${this._p_origin}/rm/resources/`;
+		this._b_filter_resources = b_filter_resources;
 		this._h_prefixes_custom = {};
 
 		// prep decontextualizer if needed
@@ -81,8 +83,8 @@ export class DngCrawler {
 			// ref term IRI
 			const p_term = kt_term.value;
 
-			// first encounter w/ node
-			if(!as_links.has(p_term)) {
+			// first encounter w/ node and (not filtering or not resource)
+			if(!as_links.has(p_term) && (!this._b_filter_resources || !p_term.startsWith(this._p_dng_resource))) {
 				// add to link set
 				as_links.add(p_term);
 
@@ -250,6 +252,13 @@ export class DngCrawler {
 
 			// crawl outgoing nodes
 			this._handle_node_in('object', kt_quad, as_links, h_remap);
+
+			// filter resources (don't want to include those outside of a module)
+			const kt_subject = kt_quad.subject;
+			const p_subject = kt_subject.value;
+			if(this._b_filter_resources && 'NamedNode' === kt_subject.termType && p_url !== p_subject && p_subject.startsWith(this._p_dng_resource)) {
+				continue;
+			}
 
 			// add (possibly mutated) quad to local dataset
 			k_dataset.add(f_decontextualize_quad(kt_quad));
