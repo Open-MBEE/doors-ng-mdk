@@ -155,6 +155,58 @@ function wrap_handler(f_handler) {
 let y_yargs = yargs(hideBin(process.argv))
 	.usage('dng-mdk <command>');
 
+const H_OPTIONS_SYNC = {
+	project: {
+		describe: 'full name of the project on DNG, case-sensitive',
+		demandOption: true,
+		type: 'string',
+	},
+	malloc: {
+		describe: 'amount of memory to allocate for V8 instance in MiB',
+		type: 'number',
+	},
+	sockets: {
+		describe: 'number of sockets to use',
+		type: 'number',
+	},
+	requests: {
+		describe: 'number of concurrent requests to open',
+		type: 'number',
+	},
+	reset: {
+		type: 'boolean',
+		describe: 'delete the project if it already exists on MMS and create a new project in its place ',
+	},
+	baselines: {
+		type: 'number',
+		describe: 'only sync the N latest baselines at most',
+	},
+	'auth-retries': {
+		type: 'number',
+		describe: 'number of times to retry failed DNG authentication',
+	},
+	'use-folders': {
+		type: 'boolean',
+		describe: `use the 'folders' workaround to fetch all artifacts for a large project`,
+	},
+	'mms-safety': {
+		type: 'boolean',
+		describe: 'enable a safety mechanism that attempts to use batching when getting all elements from MMS',
+	},
+	'dry-run': {
+		type: 'boolean',
+		describe: 'do not make any writes to MMS',
+	},
+	'crawl-depth': {
+		type: 'number',
+		describe: 'limits number of hops to make from each requirement while crawling a project',
+	},
+	'module': {
+		type: 'array',
+		describe: 'URI(s) of module(s) to use when selecting requirements',
+	},
+};
+
 // 'sync' command
 y_yargs = y_yargs.command({
 	command: 'sync <MMS_ORG_PROJECT_ID>',
@@ -165,68 +217,40 @@ y_yargs = y_yargs.command({
 			type: 'string',
 			describe: 'org/project-id target for MMS project',
 		})
-		.options({
-			project: {
-				describe: 'full name of the project on DNG, case-sensitive',
-				demandOption: true,
-				type: 'string',
-			},
-			malloc: {
-				describe: 'amount of memory to allocate for V8 instance in MiB',
-				type: 'number',
-			},
-			sockets: {
-				describe: 'number of sockets to use',
-				type: 'number',
-			},
-			requests: {
-				describe: 'number of concurrent requests to open',
-				type: 'number',
-			},
-			reset: {
-				type: 'boolean',
-				describe: 'delete the project if it already exists on MMS and create a new project in its place ',
-			},
-			baselines: {
-				type: 'number',
-				describe: 'only sync the N latest baselines at most',
-			},
-			'auth-retries': {
-				type: 'number',
-				describe: 'number of times to retry failed DNG authentication',
-			},
-			'use-folders': {
-				type: 'boolean',
-				describe: `use the 'folders' workaround to fetch all artifacts for a large project`,
-			},
-			'mms-safety': {
-				type: 'boolean',
-				describe: 'enable a safety mechanism that attempts to use batching when getting all elements from MMS',
-			},
-			'dry-run': {
-				type: 'boolean',
-				describe: 'do not make any writes to MMS',
-			},
-			'crawl-depth': {
-				type: 'number',
-				describe: 'limits number of hops to make from each requirement while crawling a project',
-			},
-		})
+		.options(H_OPTIONS_SYNC)
 		.help().version(false),
 	handler: wrap_handler(async(g_argv) => {
 		// malloc
 		if(g_argv.malloc) {
+			// reconstruct cli args to forward to child proc
 			let a_args = [g_argv.MMS_ORG_PROJECT_ID];
-			if(g_argv.project) a_args.push(...['--project', g_argv.project+'']);
-			if(g_argv.sockets) a_args.push(...['--sockets', g_argv.sockets+'']);
-			if(g_argv.requests) a_args.push(...['--requests', g_argv.requests+'']);
-			if(g_argv.reset) a_args.push(...['--reset']);
-			if('baselines' in g_argv) a_args.push(...['--baselines', g_argv.baselines+'']);
-			if('authRetries' in g_argv) a_args.push(...['--auth-retries', g_argv.authRetries+'']);
-			if(g_argv.useFolders) a_args.push(...['--use-folders']);
-			if(g_argv.mmsSafety) a_args.push(...['--mms-safety']);
-			if(g_argv.dryRun) a_args.push(...['--dry-run']);
+			for(const [si_option, g_option] of Object.entries(H_OPTIONS_SYNC)) {
+				// skip malloc
+				if('malloc' === si_option) continue;
 
+				// normalize option label
+				const s_option_label = si_option.replace(/-(\w)/g, (_, s) => s.toUpperCase());
+
+				// option present in argv
+				if(s_option_label in g_argv) {
+					const s_option_flag = `--${si_option}`;
+
+					// append option
+					if('boolean' === g_option.type) {
+						a_args.push(s_option_flag);
+					}
+					// array of values, append all
+					else if('array' === g_option.type) {
+						a_args.push(...g_argv[s_option_label].flatMap(s => [s_option_flag, s]));
+					}
+					// non-boolean, append value
+					else {
+						a_args.push(...[s_option_flag, g_argv[s_option_label]]);
+					}
+				}
+			}
+
+			// spawn child proc
 			const u_sub = fork(filename(import.meta), ['sync', ...a_args], {
 				cwd: pd_root,
 				execArgv: ['--max-old-space-size='+g_argv.malloc],
@@ -266,6 +290,7 @@ y_yargs = y_yargs.command({
 			dng_use_folders: g_argv.useFolders,
 			dng_auth_retries: g_argv.authRetries || 3,
 			dng_crawl_depth: g_argv.crawlDepth || 3,
+			dng_modules: g_argv.module || [],
 			local_project_dir: pd_project,
 			mms_server: H_ENV.MMS_SERVER,
 			mms_project_org: si_mms_org,
@@ -825,5 +850,6 @@ y_yargs.demandCommand(1, 1)  // eslint-disable-line no-unused-expressions
 		MMS_SERVER      URL for MMS server
 		MMS_USER        Username for MMS auth
 		MMS_PASS        Password for MMS auth
+		MMS_PATH        Optionally set the HTTP path prefix to use for MMS endpoints
 	`.replace(/\n[ \t]+/g, '\n  '))
 	.argv;

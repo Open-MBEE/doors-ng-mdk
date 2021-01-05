@@ -45,6 +45,7 @@ DNG_PASS=pass
 MMS_SERVER=https://mms.xyz.org
 MMS_USER=user
 MMS_PASS=pass
+#MMS_PATH=''  # uncomment this line for MMS4
 ```
 
 **Run:**
@@ -150,6 +151,7 @@ Environment Variables:
   MMS_SERVER      URL for MMS server
   MMS_USER        Username for MMS auth
   MMS_PASS        Password for MMS auth
+  MMS_PATH        Optionally set the HTTP path prefix to use for MMS endpoints
 ```
 
 For local testing, it is recommended that your create a `.env` file with all the enviornment variables (docker users skip this step):
@@ -163,6 +165,7 @@ export DNG_PASS=pass
 export MMS_SERVER=https://mms.xyz.org
 export MMS_USER=user
 export MMS_PASS=pass
+#export MMS_PATH=''  # uncomment this line for MMS4
 ```
 
 Then, simply `$ source .env` before running the CLI.
@@ -175,6 +178,7 @@ set DNG_PASS=pass
 set MMS_SERVER=https://mms.xyz.org
 set MMS_USER=user
 set MMS_PASS=pass
+#set MMS_PATH=""  # uncomment this line for MMS4
 ```
 
 ### CLI: Sync
