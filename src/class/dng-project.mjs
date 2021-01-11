@@ -32,6 +32,7 @@ const KT_IBM_NAV_PARENT = c1('ibm_nav:parent', H_PREFIXES);
 const KT_OSLC_CONFIG_COMPONENT = c1('oslc_config:component', H_PREFIXES);
 const KT_OSLC_CONFIG_CONFIGURATIONS = c1('oslc_config:configurations', H_PREFIXES);
 const KT_OSLC_RM_USES = c1('oslc_rm:uses', H_PREFIXES);
+const KT_JAZZ_NAV_SUBFOLDERS = c1('jazz_nav:subfolders', H_PREFIXES);
 
 const c1v = sc1 => c1(sc1, H_PREFIXES).concise();
 const all = as => as? [...as]: [];
@@ -126,6 +127,7 @@ export class DngProject {
 		this._n_auth_retries = gc_dng.dng_auth_retries || 0;
 		this._n_crawl_depth = gc_dng.dng_crawl_depth || 3;
 		this._a_modules = gc_dng.dng_modules || [];
+		this._a_folders = gc_dng.dng_folders || [];
 	}
 
 	async info() {
@@ -317,10 +319,12 @@ export class DngProject {
 		// modules
 		const a_modules = this._a_modules;
 
+		// folders
+		const a_folders = this._a_folders;
+
 		// gather requirements
 		const as_requirements = new Set();
 		GATHER_REQUIREMENTS: {
-
 			// module selection
 			if(a_modules.length) {
 				// simple client
@@ -347,11 +351,11 @@ export class DngProject {
 				console.warn(`${as_requirements.size} requirements gathered from ${a_modules.length} module(s)`);
 			}
 			// use folders
-			else if(gc_export.dng_use_folders) {
+			else if(a_folders.length || gc_export.dng_use_folders) {
 				const as_visited = new Set();
 
 				// recursively gather requirments using folder workaround
-				await (async function recurse(p_folder, a_path=[]) {
+				const f_recurse = async function recurse(p_folder, a_path=[]) {
 					if(as_visited.has(p_folder)) return;
 					as_visited.add(p_folder);
 
@@ -390,9 +394,24 @@ export class DngProject {
 						let s_title = as_titles? c1([...as_titles][0]).value: '(unlabeled)';
 
 						// recurse
-						await recurse(p_subfolder, [...a_path, s_title]);
+						await f_recurse(p_subfolder, [...a_path, s_title]);
 					}
-				})(`${this._p_server}/rm/folders/${si_project}`);
+				};
+
+				// select folders
+				if(a_folders.length) {
+					// each folder
+					for(const si_folder of a_folders) {
+						await f_recurse(`${this._p_server}/rm/folders/${si_folder}`);
+					}
+
+					// verbose
+					console.warn(`${as_requirements.size} requirements gathered from ${a_folders.length} folder(s)`);
+				}
+				// all folders
+				else {
+					f_recurse(`${this._p_server}/rm/folders/${si_project}`);
+				}
 			}
 			else {
 				// parse target URL
@@ -411,7 +430,7 @@ export class DngProject {
 		}
 
 		// spawn crawler
-		const y_crawler = new DngCrawler(y_client, n_concurrent_requests, !!a_modules.length, ds_scribe);
+		const y_crawler = new DngCrawler(y_client, n_concurrent_requests, !!(a_modules.length+a_folders.length), ds_scribe);
 
 		// prep tasks
 		const a_tasks = [];

@@ -225,6 +225,30 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 		return this._translate_resource(p_module, 'Module');
 	}
 
+	translate_folders() {
+		const {
+			_kd_project: kd_project,
+			_h_prefixes: h_prefixes,
+			_f_c1p: c1p,
+		} = this;
+
+		// select all folders
+		const kd_folders = kd_project.match(null, KT_RDF_TYPE, c1p('jazz_nav:folder', h_prefixes));
+
+		// each folder
+		for(const kq_folder of kd_folders) {
+			// ref folder IRI
+			const p_folder = kq_folder.subject.value;
+
+			// translate it
+			this.translate_folder(p_folder);
+		}
+	}
+
+	translate_folder(p_folder) {
+		return this._translate_resource(p_folder, 'Folder');
+	}
+
 	_translate_resource(p_resource, s_type, b_tolerant=false) {
 		const {
 			_h_prefixes: h_prefixes,

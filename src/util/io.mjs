@@ -61,7 +61,7 @@ export function fetch(p_url, gc_request, f_connected=null) {
 		}, async(ds_res) => {
 			// verbose
 			if(process.env.DNG_MDK_DEBUG) {
-				console.warn(cherr.yellow(`Received ${ds_res.statusCode} from endpoint w/ response headers:`));
+				console.warn(cherr.yellow(`[${(new Date()).toISOString()}]: Received ${ds_res.statusCode} from endpoint w/ response headers:`));
 				console.warn('\t'+cherr.grey(JSON.stringify(ds_res.headers)));
 			}
 
@@ -81,7 +81,7 @@ export function fetch(p_url, gc_request, f_connected=null) {
 					JsonStreamObject.withParser(),
 				], (e_pipe) => {
 					if(e_pipe) {
-						fe_reject(new Error(`Error while streaming parsing response JSON from <${p_url}>: ${e_pipe.stack}`));
+						fe_reject(new Error(`[${(new Date()).toISOString()}]: Error while streaming parsing response JSON from <${p_url}>: ${e_pipe.stack}`));
 					}
 					else {
 						fk_resolve(g_json);
@@ -108,7 +108,7 @@ export function fetch(p_url, gc_request, f_connected=null) {
 					h_headers_view.Authorization = h_headers_view.Authorization.replace(/^(Basic\s*)?.*$/, '$1*****');
 				}
 
-				return fe_reject(new Error(`Unexpected response status ${n_status} from <${p_url}> '${ds_res.statusMessage}'; response body: '''\n${s_body}\n'''. Request metadata: ${JSON.stringify(gc_request_view, null, '\t')}`));
+				return fe_reject(new Error(`[${(new Date()).toISOString()}]: Unexpected response status ${n_status} from <${p_url}> '${ds_res.statusMessage}'; response body: '''\n${s_body}\n'''. Request metadata: ${JSON.stringify(gc_request_view, null, '\t')}`));
 			}
 		});
 	});
@@ -150,7 +150,7 @@ export const upload = (z_input, p_url, gc_request) => new Promise((fk_resolve, f
 				fe_reject(e_upload);
 			}
 			else {
-				console.warn(`Payload successfully uploaded to <${p_url}>`);
+				console.warn(`[${(new Date()).toISOString()}]: Payload successfully uploaded to <${p_url}>`);
 				const t_start = Date.now();
 				dt_waiting = setInterval(() => {
 					const xs_elapsed = Math.round((Date.now() - t_start) / 1000);
@@ -170,7 +170,7 @@ export const upload = (z_input, p_url, gc_request) => new Promise((fk_resolve, f
 
 	ds_upload.on('error', fe_reject);
 	ds_upload.on('finish', () => {
-		console.warn(`Payload successfully uploaded to <${p_url}>`);
+		console.warn(`[${(new Date()).toISOString()}]: Payload successfully uploaded to <${p_url}>`);
 		const t_start = Date.now();
 		dt_waiting = setInterval(() => {
 			const xs_elapsed = Math.round((Date.now() - t_start) / 1000);
