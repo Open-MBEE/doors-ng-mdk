@@ -205,6 +205,11 @@ const H_OPTIONS_SYNC = {
 		type: 'array',
 		describe: 'URI(s) of module(s) to use when selecting requirements',
 	},
+	'folder': {
+		type: 'array',
+		describe: 'ID(s) of folder(s) to use when selecting requirements',
+		conflicts: ['module', 'use-folders'],
+	},
 };
 
 // 'sync' command
@@ -291,6 +296,7 @@ y_yargs = y_yargs.command({
 			dng_auth_retries: g_argv.authRetries || 3,
 			dng_crawl_depth: g_argv.crawlDepth || 3,
 			dng_modules: g_argv.module || [],
+			dng_folders: g_argv.folder || [],
 			local_project_dir: pd_project,
 			mms_server: H_ENV.MMS_SERVER,
 			mms_project_org: si_mms_org,
@@ -477,7 +483,7 @@ y_yargs = y_yargs.command({
 			type: 'string',
 			describe: 'URL to the resource',
 		})
-		.options()
+		.options({})
 		.help().version(false),
 	handler: wrap_handler(async(g_argv) => {
 		// simple client
@@ -841,7 +847,7 @@ y_yargs = y_yargs.command({
 	}),
 });
 
-y_yargs.demandCommand(1, 1)  // eslint-disable-line no-unused-expressions
+y_yargs.demandCommand(1, 1, 'must provide exactly 1 command')  // eslint-disable-line no-unused-expressions
 	.help()
 	.epilog(`Environment Variables:
 		DNG_SERVER      URL for DNG server

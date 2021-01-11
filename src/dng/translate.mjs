@@ -60,6 +60,9 @@ export async function dng_translate(gc_translate) {
 	// translate modules
 	k_translator.translate_modules();
 
+	// translate folders
+	k_translator.translate_folders();
+
 	// close output
 	await k_translator.end();
 
