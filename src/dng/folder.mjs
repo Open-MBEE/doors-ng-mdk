@@ -1,11 +1,11 @@
-// const P_SORT_BY_PREDICATE = 'http://purl.org/dc/terms/identifier';
+const P_SORT_BY_PREDICATE = 'http://purl.org/dc/terms/identifier';
 
 export async function dng_folder(k_client, si_project, p_folder, n_pagintation_size) {
 	// accumulate artifacts
 	let a_artifacts = [];
 
 	// owl:sameAs dcterms:identifier
-	const P_SORT_BY_PREDICATE = `${k_client._p_server}/rm/types/_ye4_ltP1EeSkXuceQrR01w`;
+	// const P_SORT_BY_PREDICATE = `${k_client._p_server}/rm/types/_ye4_ltP1EeSkXuceQrR01w`;
 
 	// paginated iteration
 	for(let i_page=1; ; i_page++) {
