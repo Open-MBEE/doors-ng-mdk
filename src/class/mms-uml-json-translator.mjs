@@ -246,7 +246,7 @@ export class MmsUmlJsonTranslator extends MdkTranslator {
 	}
 
 	translate_folder(p_folder) {
-		return this._translate_resource(p_folder, 'Folder');
+		return this._translate_resource(p_folder, 'Folder', true);
 	}
 
 	_translate_resource(p_resource, s_type, b_tolerant=false) {
