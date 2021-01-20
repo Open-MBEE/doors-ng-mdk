@@ -161,6 +161,10 @@ const H_OPTIONS_SYNC = {
 		demandOption: true,
 		type: 'string',
 	},
+	name: {
+		describe: 'what to name the project on MMS',
+		type: 'string',
+	},
 	malloc: {
 		describe: 'amount of memory to allocate for V8 instance in MiB',
 		type: 'number',
@@ -310,6 +314,9 @@ y_yargs = y_yargs.command({
 
 		// dng project info
 		Object.assign(gc_action, await k_dng.info());
+
+		// manual name
+		if(g_argv.name) gc_action.dng_project_name = g_argv.name;
 
 		// init mms project instance
 		const k_mms = new MmsProject(gc_action);
