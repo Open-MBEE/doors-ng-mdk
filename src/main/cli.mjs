@@ -715,23 +715,29 @@ y_yargs = y_yargs.command({
 					headers: h_headers_iqs,
 				});
 
-				// base compartment to perform delta indexing with
-				let p_compartment_base;
-
 				console.timeEnd('select');
+
+				// old compartments for same ref
+				const a_comparments_old = [];
 
 				// iterate over existing indexed compartments
 				for(const g_compartment of g_body_pers.persistedModelCompartments) {
-					const p_compartment_old = g_compartment.compartmentURI;
+					// ref compartment
+					const p_compartment_sel = g_compartment.compartmentURI;
 
-					// compartment already indexed, do not redo
-					if(p_compartment_old === p_compartment) {
-						console.warn(`compartment '${p_compartment}' is already indexed.`);
-						process.exit(0);
+					// same ref
+					if(p_compartment_sel.startsWith(s_compartment_start)) {
+						const p_compartment_old = g_compartment.compartmentURI;
+
+						// compartment is already indexed, do not redo
+						if(p_compartment_old === p_compartment) {
+							console.warn(`compartment '${p_compartment}' is already indexed.`);
+							process.exit(0);
+						}
+
+						// add to list
+						a_comparments_old.push(p_compartment_old);
 					}
-
-					// save base
-					p_compartment_base = p_compartment_old;
 				}
 
 				console.warn(`loading new compartment into persistent index...`);
@@ -742,8 +748,35 @@ y_yargs = y_yargs.command({
 					compartmentURI: p_compartment,
 				});
 
-				// perform delta index
-				if(p_compartment_base && g_argv.useDeltaIndexing) {
+				// use delta indexing
+				if(a_comparments_old.length && g_argv.useDeltaIndexing) {
+					// base compartment to perform delta indexing with
+					let p_compartment_base;
+					let xt_latest = 0;
+
+					// each old compartment
+					for(const p_compartment_old of a_comparments_old) {
+						// fetch details
+						const g_compartment_old = await upload(JSON.stringify({
+							compartmentURI: p_compartment_old,
+						}), `${p_server}/api/mms-repository.details`, {
+							method: 'POST',
+							headers: h_headers_iqs,
+						});
+
+						// parse date
+						const xt_commit = (new Date(g_compartment_old.commitName)).getTime();
+
+						// newer commit
+						if(xt_commit > xt_latest) {
+							xt_latest = xt_commit;
+
+							// use as base for delta
+							p_compartment_base = p_compartment_old;
+						}
+					}
+
+					// perform delta index
 					await upload(JSON.stringify({
 						baseModelCompartment: {
 							compartmentURI: p_compartment_base,
@@ -817,28 +850,23 @@ y_yargs = y_yargs.command({
 				console.time('delete');
 
 				// finally, delete all the old compartments
-				for(const g_compartment of g_body_pers.persistedModelCompartments) {
-					const p_compartment_old = g_compartment.compartmentURI;
+				for(const p_compartment_old of a_comparments_old) {
+					// figure out which indices it is loaded into
+					const g_status = await upload(JSON.stringify({
+						compartmentURI: p_compartment_old,
+					}), `${p_server}/api/demo.compartmentIndexStatus`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
 
-					// mopid match
-					if(p_compartment_old.startsWith(s_compartment_start) && p_compartment !== p_compartment_old) {
-						// figure out which indices it is loaded into
-						const g_status = await upload(JSON.stringify({
-							compartmentURI: p_compartment_old,
-						}), `${p_server}/api/demo.compartmentIndexStatus`, {
-							method: 'POST',
-							headers: h_headers_iqs,
-						});
-
-						// delete them
-						await upload(JSON.stringify({
-							modelCompartment: {compartmentURI:p_compartment_old},
-							indexes: g_status.indices,
-						}), `${p_server}/api/demo.deleteModelCompartment`, {
-							method: 'POST',
-							headers: h_headers_iqs,
-						});
-					}
+					// delete them
+					await upload(JSON.stringify({
+						modelCompartment: {compartmentURI:p_compartment_old},
+						indexes: g_status.indices,
+					}), `${p_server}/api/demo.deleteModelCompartment`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
 				}
 
 				console.timeEnd('delete');
