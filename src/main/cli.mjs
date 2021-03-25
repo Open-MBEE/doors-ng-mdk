@@ -671,25 +671,21 @@ y_yargs = y_yargs.command({
 								if(si_mms_project === g_project.projectId) {
 									// each ref
 									for(const g_ref of g_project.refs) {
-										// matching ref
-										if('master' === g_ref.refId) {
-											// each commit
-											for(const g_commit of g_ref.commits) {
-												// parse commit datetime
-												const xt_commit = (new Date(g_commit.name)).getTime();
-
-												// most recent
-												if(!g_most_recent || xt_commit > g_commit.timestamp) {
-													g_most_recent = {
-														...g_commit,
-														timestamp: xt_commit,
-													};
-												}
+										// each commit
+										for(const g_commit of g_ref.commits) {
+											// parse commit datetime
+											const xt_commit = (new Date(g_commit.name)).getTime();
+											// most recent
+											if(!g_most_recent || xt_commit > g_commit.timestamp) {
+												g_most_recent = {
+													...g_commit,
+													timestamp: xt_commit,
+												};
 											}
-
-											// done scanning
-											break COMMIT_SCAN;
 										}
+
+										// done scanning
+										break COMMIT_SCAN;
 									}
 								}
 							}
