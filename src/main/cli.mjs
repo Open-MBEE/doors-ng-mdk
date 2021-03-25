@@ -641,10 +641,11 @@ y_yargs = y_yargs.command({
 
 				// prep compartment IRI
 				let p_compartment;
+				let p_compartments = [];
 
 				// most recent compartment IRI is present
 				if(1 === a_commits.length) {
-					p_compartment = a_commits[0];
+					p_compartments.push(a_commits[0]);
 				}
 				// need to fetch from list
 				else {
@@ -670,7 +671,8 @@ y_yargs = y_yargs.command({
 								// matching project
 								if(si_mms_project === g_project.projectId) {
 									// each ref
-									for(const g_ref of g_project.refs) {
+									g_project.refs.sort((a, b) => ('master' === a.refId) ? 1 : (new Date(a.created).getTime() > new Date(b.created).getTime()) ? 1 : -1)
+									for(const [key, g_ref] of g_project.refs) {
 										// each commit
 										for(const g_commit of g_ref.commits) {
 											// parse commit datetime
@@ -681,24 +683,27 @@ y_yargs = y_yargs.command({
 													...g_commit,
 													timestamp: xt_commit,
 												};
+												p_compartments.push(`${s_compartment_start}${g_most_recent.commitId}`);
 											}
 										}
-
-										// done scanning
-										break COMMIT_SCAN;
+										if (g_argv.baselines > 0 && key >= g_argv.baselines - 1) {
+											// done scanning
+											break COMMIT_SCAN;
+										}
 									}
+									break COMMIT_SCAN;
 								}
 							}
 						}
 					}
 
 					// nothing was found
-					if(!g_most_recent) throw new Error(`The requested org/project was not found on <${p_server}>`);
+					if(p_compartments.length === 0) throw new Error(`The requested org/project was not found on <${p_server}>`);
 
 					console.warn(`selecting most recent: ${(new Date(g_most_recent.timestamp)).toISOString()}`);
 
-					// set compartment IRI
-					p_compartment = `${s_compartment_start}${g_most_recent.commitId}`;
+					// set latest compartment IRI
+					p_compartment = p_compartments.slice(-1).pop();
 				}
 
 				console.timeEnd('scan');
@@ -714,7 +719,7 @@ y_yargs = y_yargs.command({
 				console.timeEnd('select');
 
 				// old compartments for same ref
-				const a_comparments_old = [];
+				const a_compartments_old = [];
 
 				// iterate over existing indexed compartments
 				for(const g_compartment of g_body_pers.persistedModelCompartments) {
@@ -725,33 +730,37 @@ y_yargs = y_yargs.command({
 					if(p_compartment_sel.startsWith(s_compartment_start)) {
 						const p_compartment_old = g_compartment.compartmentURI;
 
-						// compartment is already indexed, do not redo
-						if(p_compartment_old === p_compartment) {
-							console.warn(`compartment '${p_compartment}' is already indexed.`);
-							process.exit(0);
+						// add to list if not already indexed
+						if (!p_compartments.includes(p_compartment_old)) {
+							a_compartments_old.push(p_compartment_old);
 						}
 
-						// add to list
-						a_comparments_old.push(p_compartment_old);
+						// Nothing to do
+						if(!a_compartments_old.length) {
+							console.warn(`all compartments of '${s_compartment_start}' are already indexed.`);
+							process.exit(0);
+						}
 					}
 				}
 
 				console.warn(`loading new compartment into persistent index...`);
 				console.time('persistent');
 
-				// prep compartment URI payload
-				const s_payload = JSON.stringify({
-					compartmentURI: p_compartment,
-				});
+				let s_payloads = [];
+				for (let p_compartment of p_compartments) {
+					s_payloads.push(JSON.stringify({
+						compartmentURI: p_compartment,
+					}));
+				}
 
 				// use delta indexing
-				if(a_comparments_old.length && g_argv.useDeltaIndexing) {
+				if(a_compartments_old.length && g_argv.useDeltaIndexing) {
 					// base compartment to perform delta indexing with
 					let p_compartment_base;
 					let xt_latest = 0;
 
 					// each old compartment
-					for(const p_compartment_old of a_comparments_old) {
+					for(const p_compartment_old of a_compartments_old) {
 						// fetch details
 						const g_compartment_old = await upload(JSON.stringify({
 							compartmentURI: p_compartment_old,
@@ -772,25 +781,29 @@ y_yargs = y_yargs.command({
 						}
 					}
 
-					// perform delta index
-					await upload(JSON.stringify({
-						baseModelCompartment: {
-							compartmentURI: p_compartment_base,
-						},
-						requiredModelCompartment: {
-							compartmentURI: p_compartment,
-						},
-					}), `${p_server}/api/persistent-index.indexModelCompartmentDelta`, {
-						method: 'POST',
-						headers: h_headers_iqs,
-					});
+					for (let p_compartment of p_compartments) {
+						// perform delta index
+						await upload(JSON.stringify({
+							baseModelCompartment: {
+								compartmentURI: p_compartment_base,
+							},
+							requiredModelCompartment: {
+								compartmentURI: p_compartment,
+							},
+						}), `${p_server}/api/persistent-index.indexModelCompartmentDelta`, {
+							method: 'POST',
+							headers: h_headers_iqs,
+						});
+					}
 				}
 				// load full persistent index
 				else {
-					await upload(s_payload, `${p_server}/api/persistent-index.indexModelCompartment`, {
-						method: 'POST',
-						headers: h_headers_iqs,
-					});
+					for (let s_payload of s_payloads) {
+						await upload(s_payload, `${p_server}/api/persistent-index.indexModelCompartment`, {
+							method: 'POST',
+							headers: h_headers_iqs,
+						});
+					}
 				}
 
 				console.timeEnd('persistent');
@@ -798,20 +811,24 @@ y_yargs = y_yargs.command({
 				console.time('in-memory');
 
 				// load in-memory index
-				await upload(s_payload, `${p_server}/api/inmemory-index.loadModelCompartment`, {
-					method: 'POST',
-					headers: h_headers_iqs,
-				});
+				for (let s_payload of s_payloads) {
+					await upload(s_payload, `${p_server}/api/inmemory-index.loadModelCompartment`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
+				}
 
 				console.timeEnd('in-memory');
 				console.warn(`loading new compartment into elastic-search index...`);
 				console.time('elastic-search');
 
 				// load elastic-search index
-				await upload(s_payload, `${p_server}/api/elastic-search-integration.loadModelCompartment`, {
-					method: 'POST',
-					headers: h_headers_iqs,
-				});
+				for (let s_payload of s_payloads) {
+					await upload(s_payload, `${p_server}/api/elastic-search-integration.loadModelCompartment`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
+				}
 
 				console.timeEnd('elastic-search');
 				console.warn(`loading new compartment into neptune index...`);
@@ -819,23 +836,25 @@ y_yargs = y_yargs.command({
 
 				// load neptune index
 				try {
-					// transform model
-					await upload(JSON.stringify({
-						modelCompartment: {compartmentURI:p_compartment},
-						format: 'RDF_TURTLE',
-					}), `${p_server}/api/persistent-index.transformModelCompartment`, {
-						method: 'POST',
-						headers: h_headers_iqs,
-					});
+					for (let p_compartment of p_compartments) {
+						// transform model
+						await upload(JSON.stringify({
+							modelCompartment: {compartmentURI: p_compartment},
+							format: 'RDF_TURTLE',
+						}), `${p_server}/api/persistent-index.transformModelCompartment`, {
+							method: 'POST',
+							headers: h_headers_iqs,
+						});
 
-					// load index
-					await upload(JSON.stringify({
-						modelCompartment: {compartmentURI:p_compartment},
-						format: 'RDF_TURTLE',
-					}), `${p_server}/api/amazon-neptune-integration.loadModelCompartment`, {
-						method: 'POST',
-						headers: h_headers_iqs,
-					});
+						// load index
+						await upload(JSON.stringify({
+							modelCompartment: {compartmentURI: p_compartment},
+							format: 'RDF_TURTLE',
+						}), `${p_server}/api/amazon-neptune-integration.loadModelCompartment`, {
+							method: 'POST',
+							headers: h_headers_iqs,
+						});
+					}
 				}
 				catch(e_index) {
 					console.error(`Failed to create Neptune index but continuing anyway... ${e_index.stack}`);
@@ -846,7 +865,7 @@ y_yargs = y_yargs.command({
 				console.time('delete');
 
 				// finally, delete all the old compartments
-				for(const p_compartment_old of a_comparments_old) {
+				for(const p_compartment_old of a_compartments_old) {
 					// figure out which indices it is loaded into
 					const g_status = await upload(JSON.stringify({
 						compartmentURI: p_compartment_old,
