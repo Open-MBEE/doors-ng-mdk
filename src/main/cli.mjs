@@ -683,9 +683,9 @@ y_yargs = y_yargs.command({
 													...g_commit,
 													timestamp: xt_commit,
 												};
-												p_compartments.push(`${s_compartment_start}${g_most_recent.commitId}`);
 											}
 										}
+										p_compartments.push(`${s_compartment_start}${g_most_recent.commitId}`);
 										if (g_argv.baselines > 0 && key >= g_argv.baselines - 1) {
 											// done scanning
 											break COMMIT_SCAN;
