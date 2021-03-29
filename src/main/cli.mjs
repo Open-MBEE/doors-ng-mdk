@@ -151,6 +151,28 @@ function wrap_handler(f_handler) {
 	};
 }
 
+// helper function find latest commit
+function latest_commit_from(a_commits) {
+	let g_most_recent = null;
+
+	// each commit
+	for(const g_commit of a_commits) {
+		// parse commit datetime
+		const xt_commit = (new Date(g_commit.name)).getTime();
+
+		// most recent
+		if(!g_most_recent || xt_commit > g_most_recent.timestamp) {
+			g_most_recent = {
+				...g_commit,
+				timestamp: xt_commit,
+			};
+		}
+	}
+
+	// return latest
+	return g_most_recent;
+}
+
 // parse CLI args
 let y_yargs = yargs(hideBin(process.argv))
 	.usage('dng-mdk <command>');
@@ -598,6 +620,10 @@ y_yargs = y_yargs.command({
 				type: 'boolean',
 				describe: `use IncQuery's delta-based indexing when possible`,
 			},
+			'n-latest-baselines': {
+				type: 'number',
+				describe: 'ensure the n latest baselines (refs other than master) are also indexed',
+			},
 		})
 		.help().version(false),
 	handler: wrap_handler(async(g_argv) => {
@@ -639,6 +665,9 @@ y_yargs = y_yargs.command({
 					}
 				}
 
+				// alt compartments
+				const h_alt_compartments = {};
+
 				// prep compartment IRI
 				let p_compartment;
 
@@ -671,26 +700,18 @@ y_yargs = y_yargs.command({
 								if(si_mms_project === g_project.projectId) {
 									// each ref
 									for(const g_ref of g_project.refs) {
-										// matching ref
+										// master ref; deduce latest commit
 										if('master' === g_ref.refId) {
-											// each commit
-											for(const g_commit of g_ref.commits) {
-												// parse commit datetime
-												const xt_commit = (new Date(g_commit.name)).getTime();
-
-												// most recent
-												if(!g_most_recent || xt_commit > g_commit.timestamp) {
-													g_most_recent = {
-														...g_commit,
-														timestamp: xt_commit,
-													};
-												}
-											}
-
-											// done scanning
-											break COMMIT_SCAN;
+											g_most_recent = latest_commit_from(g_ref.commits);
+										}
+										// all others; store to hash
+										else {
+											h_alt_compartments[g_ref.refId] = g_ref.commits;
 										}
 									}
+
+									// done scanning
+									break COMMIT_SCAN;
 								}
 							}
 						}
@@ -718,7 +739,7 @@ y_yargs = y_yargs.command({
 				console.timeEnd('select');
 
 				// old compartments for same ref
-				const a_comparments_old = [];
+				const a_compartments_old = [];
 
 				// iterate over existing indexed compartments
 				for(const g_compartment of g_body_pers.persistedModelCompartments) {
@@ -736,7 +757,7 @@ y_yargs = y_yargs.command({
 						}
 
 						// add to list
-						a_comparments_old.push(p_compartment_old);
+						a_compartments_old.push(p_compartment_old);
 					}
 				}
 
@@ -749,13 +770,13 @@ y_yargs = y_yargs.command({
 				});
 
 				// use delta indexing
-				if(a_comparments_old.length && g_argv.useDeltaIndexing) {
+				if(a_compartments_old.length && g_argv.useDeltaIndexing) {
 					// base compartment to perform delta indexing with
 					let p_compartment_base;
 					let xt_latest = 0;
 
 					// each old compartment
-					for(const p_compartment_old of a_comparments_old) {
+					for(const p_compartment_old of a_compartments_old) {
 						// fetch details
 						const g_compartment_old = await upload(JSON.stringify({
 							compartmentURI: p_compartment_old,
@@ -798,6 +819,86 @@ y_yargs = y_yargs.command({
 				}
 
 				console.timeEnd('persistent');
+
+				// load n latest baselines
+				let n_latest = g_argv.nLatestBaselines;
+				if(n_latest) {
+					console.warn(`ensuring the ${n_latest} latest baselines are loaded into persistent and in-memory indexes...`);
+					console.time('index-baselines');
+
+					// dng creds
+					if(!H_ENV.MMS_USER || !H_ENV.MMS_PASS) {
+						throw new Error(`Missing one of or both required environment variables: 'MMS_USER', 'MMS_PASS`);
+					}
+
+					// prep action config
+					const gc_action = {
+						mms_server: H_ENV.MMS_SERVER,
+						mms_project_org: si_mms_org,
+						mms_project_id: si_mms_project,
+						https_requests: g_argv.requests,
+						https_sockets: g_argv.sockets,
+					};
+
+					// init mms project instance
+					const k_mms = new MmsProject(gc_action);
+
+					// fetch all refs
+					const a_refs = Object.values(await k_mms.refs());
+
+					// sort in desc order by date created
+					a_refs.sort((g_a, g_b) => (new Date(g_b._created)).getTime() - (new Date(g_a._created)).getTime());
+
+					// select n latest
+					const as_refs_index = new Set(a_refs.slice(0, n_latest));
+
+					// each entry in deletion list
+					const as_compartments_old = new Set(a_compartments_old);
+					for(const p_compartment_old of as_compartments_old) {
+						// each ref to keep
+						for(const g_ref of as_refs_index) {
+							// ref is already indexed
+							if(p_compartment_old.startsWith(`mms-index:/orgs/${si_mms_org}/projects/${si_mms_project}/refs/${g_ref.id}/commits/`)) {
+								// remove from deletion list
+								as_compartments_old.delete(p_compartment_old);
+
+								// no need to reindex
+								as_refs_index.delete(g_ref);
+							}
+						}
+					}
+
+					// index the unloaded refs
+					for(const g_ref of as_refs_index) {
+						const a_commits_alt = h_alt_compartments[g_ref.id];
+						let g_latest = a_commits_alt[0];
+
+						// figure out which is the latest commit for ref
+						if(a_commits_alt.length > 1) {
+							g_latest = latest_commit_from(a_commits_alt);
+						}
+
+						// prep payload
+						const s_payload_alt = JSON.stringify({
+							compartmentURI: g_latest.compartmentURI,
+						});
+
+						// load persistent index
+						await upload(s_payload_alt, `${p_server}/api/persistent-index.indexModelCompartment`, {
+							method: 'POST',
+							headers: h_headers_iqs,
+						});
+
+						// load in-memory index
+						await upload(s_payload_alt, `${p_server}/api/inmemory-index.loadModelCompartment`, {
+							method: 'POST',
+							headers: h_headers_iqs,
+						});
+					}
+
+					console.timeEnd('index-baselines');
+				}
+
 				console.warn(`loading new compartment into in-memory index...`);
 				console.time('in-memory');
 
@@ -850,7 +951,7 @@ y_yargs = y_yargs.command({
 				console.time('delete');
 
 				// finally, delete all the old compartments
-				for(const p_compartment_old of a_comparments_old) {
+				for(const p_compartment_old of a_compartments_old) {
 					// figure out which indices it is loaded into
 					const g_status = await upload(JSON.stringify({
 						compartmentURI: p_compartment_old,
