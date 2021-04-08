@@ -624,6 +624,10 @@ y_yargs = y_yargs.command({
 				type: 'number',
 				describe: 'ensure the n latest baselines (refs other than master) are also indexed',
 			},
+			'indexes': {
+				type: 'string',
+				describe: 'comma-separated list of indexes to load; e.g., in-memory,elastic-search,neptune',
+			},
 		})
 		.help().version(false),
 	handler: wrap_handler(async(g_argv) => {
@@ -640,6 +644,17 @@ y_yargs = y_yargs.command({
 					...H_HEADERS_JSON,
 					'Authorization': `Basic ${Buffer.from(H_ENV.MMS_USER+':'+H_ENV.MMS_PASS).toString('base64')}`,
 				};
+
+				// index options
+				const a_indexes = (g_argv.indexes || '').split(',').filter(s => s);
+				const b_indexes_all = !a_indexes.length || a_indexes.includes('all');
+				const g_indexes = {
+					memory: b_indexes_all || a_indexes.includes('memory') || a_indexes.includes('in-memory'),
+					neptune: b_indexes_all || a_indexes.includes('neptune'),
+					elastic: b_indexes_all || a_indexes.includes('elastic') || a_indexes.includes('elastic-search'),
+				};
+
+				console.dir(g_indexes);
 
 				console.warn(`refreshing repositories...`);
 
@@ -890,63 +905,77 @@ y_yargs = y_yargs.command({
 						});
 
 						// load in-memory index
-						await upload(s_payload_alt, `${p_server}/api/inmemory-index.loadModelCompartment`, {
-							method: 'POST',
-							headers: h_headers_iqs,
-						});
+						if(g_indexes.memory) {
+							await upload(s_payload_alt, `${p_server}/api/inmemory-index.loadModelCompartment`, {
+								method: 'POST',
+								headers: h_headers_iqs,
+							});
+						}
 					}
 
 					console.timeEnd('index-baselines');
 				}
 
-				console.warn(`loading new compartment into in-memory index...`);
-				console.time('in-memory');
+				// in-memory
+				if(g_indexes.memory) {
+					console.warn(`loading new compartment into in-memory index...`);
+					console.time('in-memory');
 
-				// load in-memory index
-				await upload(s_payload, `${p_server}/api/inmemory-index.loadModelCompartment`, {
-					method: 'POST',
-					headers: h_headers_iqs,
-				});
-
-				console.timeEnd('in-memory');
-				console.warn(`loading new compartment into elastic-search index...`);
-				console.time('elastic-search');
-
-				// load elastic-search index
-				await upload(s_payload, `${p_server}/api/elastic-search-integration.loadModelCompartment`, {
-					method: 'POST',
-					headers: h_headers_iqs,
-				});
-
-				console.timeEnd('elastic-search');
-				console.warn(`loading new compartment into neptune index...`);
-				console.time('neptune');
-
-				// load neptune index
-				try {
-					// transform model
-					await upload(JSON.stringify({
-						modelCompartment: {compartmentURI:p_compartment},
-						format: 'RDF_TURTLE',
-					}), `${p_server}/api/persistent-index.transformModelCompartment`, {
+					// load in-memory index
+					await upload(s_payload, `${p_server}/api/inmemory-index.loadModelCompartment`, {
 						method: 'POST',
 						headers: h_headers_iqs,
 					});
 
-					// load index
-					await upload(JSON.stringify({
-						modelCompartment: {compartmentURI:p_compartment},
-						format: 'RDF_TURTLE',
-					}), `${p_server}/api/amazon-neptune-integration.loadModelCompartment`, {
+					console.timeEnd('in-memory');
+				}
+
+				// elastic-search
+				if(g_indexes.elastic) {
+					console.warn(`loading new compartment into elastic-search index...`);
+					console.time('elastic-search');
+
+					// load elastic-search index
+					await upload(s_payload, `${p_server}/api/elastic-search-integration.loadModelCompartment`, {
 						method: 'POST',
 						headers: h_headers_iqs,
 					});
-				}
-				catch(e_index) {
-					console.error(`Failed to create Neptune index but continuing anyway... ${e_index.stack}`);
+
+					console.timeEnd('elastic-search');
 				}
 
-				console.timeEnd('neptune');
+				// neptune
+				if(g_indexes.neptune) {
+					console.warn(`loading new compartment into neptune index...`);
+					console.time('neptune');
+
+					// load neptune index
+					try {
+						// transform model
+						await upload(JSON.stringify({
+							modelCompartment: {compartmentURI:p_compartment},
+							format: 'RDF_TURTLE',
+						}), `${p_server}/api/persistent-index.transformModelCompartment`, {
+							method: 'POST',
+							headers: h_headers_iqs,
+						});
+
+						// load index
+						await upload(JSON.stringify({
+							modelCompartment: {compartmentURI:p_compartment},
+							format: 'RDF_TURTLE',
+						}), `${p_server}/api/amazon-neptune-integration.loadModelCompartment`, {
+							method: 'POST',
+							headers: h_headers_iqs,
+						});
+					}
+					catch(e_index) {
+						console.error(`Failed to create Neptune index but continuing anyway... ${e_index.stack}`);
+					}
+
+					console.timeEnd('neptune');
+				}
+
 				console.warn(`deleting old compartments...`);
 				console.time('delete');
 
