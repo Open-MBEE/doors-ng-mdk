@@ -754,7 +754,7 @@ y_yargs = y_yargs.command({
 				console.timeEnd('select');
 
 				// old compartments for same ref
-				const a_compartments_old = [];
+				const as_compartments_old = new Set();
 
 				// iterate over existing indexed compartments
 				for(const g_compartment of g_body_pers.persistedModelCompartments) {
@@ -772,7 +772,7 @@ y_yargs = y_yargs.command({
 						}
 
 						// add to list
-						a_compartments_old.push(p_compartment_old);
+						as_compartments_old.add(p_compartment_old);
 					}
 				}
 
@@ -785,13 +785,13 @@ y_yargs = y_yargs.command({
 				});
 
 				// use delta indexing
-				if(a_compartments_old.length && g_argv.useDeltaIndexing) {
+				if(as_compartments_old.size && g_argv.useDeltaIndexing) {
 					// base compartment to perform delta indexing with
 					let p_compartment_base;
 					let xt_latest = 0;
 
 					// each old compartment
-					for(const p_compartment_old of a_compartments_old) {
+					for(const p_compartment_old of as_compartments_old) {
 						// fetch details
 						const g_compartment_old = await upload(JSON.stringify({
 							compartmentURI: p_compartment_old,
@@ -868,7 +868,6 @@ y_yargs = y_yargs.command({
 					const as_refs_index = new Set(a_refs.slice(0, n_latest));
 
 					// each entry in deletion list
-					const as_compartments_old = new Set(a_compartments_old);
 					for(const p_compartment_old of as_compartments_old) {
 						// each ref to keep
 						for(const g_ref of as_refs_index) {
@@ -980,7 +979,7 @@ y_yargs = y_yargs.command({
 				console.time('delete');
 
 				// finally, delete all the old compartments
-				for(const p_compartment_old of a_compartments_old) {
+				for(const p_compartment_old of as_compartments_old) {
 					// figure out which indices it is loaded into
 					const g_status = await upload(JSON.stringify({
 						compartmentURI: p_compartment_old,
