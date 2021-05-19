@@ -485,16 +485,20 @@ y_yargs = y_yargs.command({
 
 		// finally, figure out difference between latest mms and latest dng
 		{
+			const g_version = await k_mms.mms_version();
 			const si_latest = (new Date()).toISOString().replace(/[^A-Z0-9-_.]/g, '-');
-
-			// load latest master from MMS
-			const h_elements_mms = await k_mms.load('master');
 
 			// load latest from DNG
 			const h_elements_latest = await load_baseline(k_dng, {id:si_latest}, gc_action);
 
+			if (g_version.major > 4 && !g_argv.dryRun) {
+				await k_mms.apply_deltas_with_stream(h_elements_latest, 'master');
+			}
+
 			// apply deltas
 			if(!g_argv.dryRun) {
+				// load latest master from MMS
+				const h_elements_mms = await k_mms.load('master');
 				await k_mms.apply_deltas(h_elements_mms, h_elements_latest, 'master');
 			}
 		}

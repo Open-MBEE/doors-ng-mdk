@@ -114,6 +114,23 @@ function compute_delta(h_a, h_b) {
 	};
 }
 
+function compute_delta_inc(element, h_b, diff) {
+	// initialize if not already
+	if(!diff.added) diff.added = [];
+	if(!diff.deleted) diff.delete = [];
+
+	if(element.id in h_b) {
+		// values differ; overwrite element
+		if(JSON.stringify(canonicalize(element)) !== JSON.stringify(canonicalize(h_b[element.id]))) {
+			diff.added.push(h_b[element.id]);
+		}
+
+		delete h_b[element.id];
+	} else {
+		diff.deleted.push(element.id);
+	}
+}
+
 export class MmsProject {
 	constructor(gc_mms) {
 		// mms server
@@ -303,34 +320,12 @@ export class MmsProject {
 
 		// deletions
 		if(a_deleted.length) {
-			const ds_delete = new stream.PassThrough();
-			const dp_upload = upload(ds_delete, this._endpoint_ref('elements', si_ref, {overwrite:true}), this._gc_req_delete);
-
-			ds_delete.write(/* syntax: json */ `{"elements":[`);
-			let i_element = 0;
-			for(const si_element of a_deleted) {
-				ds_delete.write((i_element++? ',': '')+/* syntax: json */ `\n{"id":"${si_element}"}`);
-			}
-			ds_delete.end(/* syntax: json */ `\n]}`);
-
-			await once(ds_delete, 'finish');
-			await dp_upload;
+			await this.upload_passthrough(a_deleted, si_ref, this._gc_req_delete);
 		}
 
 		// additions
 		if(a_added.length) {
-			const ds_add = new stream.PassThrough();
-			const dp_upload = upload(ds_add, this._endpoint_ref('elements', si_ref, {overwrite:true}), this._gc_req_post);
-
-			ds_add.write(/* syntax: json */ `{"elements":[`);
-			let i_element = 0;
-			for(const g_element of a_added) {
-				ds_add.write((i_element++? ',': '')+'\n'+JSON.stringify(g_element));
-			}
-			ds_add.end(/* syntax: json */ `\n]}`);
-
-			await once(ds_add, 'finish');
-			await dp_upload;
+			await this.upload_passthrough(a_added, si_ref, this._gc_req_post);
 		}
 
 		// return summary (number of elements deleted/added)
@@ -340,6 +335,68 @@ export class MmsProject {
 		};
 	}
 
+	/**
+	 * Compute the delta between an elements in a stream and commit them to HEAD
+	 * @param {ElementHash} h_elements_new - the new elements hash
+	 * @param {string} si_ref - which ref to use
+	 * @returns {void}
+	 */
+	async apply_deltas_with_stream(h_elements_new, si_ref='master') {
+		// do not compare meta elements
+		delete h_elements_new[this._si_project];
+
+		// holder for the deltas
+		const result = {};
+
+		const ds_res = await request(this._endpoint_ref('elements', si_ref), {
+			...this._gc_req_get,
+			headers: {
+				...this._gc_req_get.headers,
+				Accept: 'application/x-ndjson',
+			},
+		});
+		await pipeline([
+			ds_res,
+			JsonStreamValues.withParser(),
+			new stream.Writable({
+				objectMode: true,
+				write({value:w_element}, s_encoding, fk_write) {
+					if('Project' === w_element.type) return;
+					// project is owner
+					if(this._si_project === w_element.ownerId && 'Package' === w_element.type) {
+						// do not compare special elements
+						if('Holding Bin' === w_element.name || 'View Instances Bin' === w_element.name) {
+							return;
+						}
+					}
+					compute_delta_inc(w_element, h_elements_new, result);
+				},
+			}),
+		]);
+
+		// each remaining key in b
+		for(const e_key in h_elements_new) {
+			result.added.push(h_elements_new[e_key]);
+		}
+
+		console.warn(`Applying ${result.deleted.length} deletions and ${result.added.length} additions to ${si_ref}.`);
+
+		// deletions
+		if(result.deleted.length) {
+			await this.upload_passthrough(result.deleted, si_ref, this._gc_req_delete);
+		}
+
+		// additions
+		if(result.added.length) {
+			await this.upload_passthrough(result.added, si_ref, this._gc_req_post);
+		}
+
+		// return summary (number of elements deleted/added)
+		return {
+			deleted: result.deleted.length,
+			added: result.added.length,
+		};
+	}
 
 	/**
 	* POST a JSON file to the project
@@ -351,6 +408,20 @@ export class MmsProject {
 		return await upload(ds_upload, this._endpoint_ref('elements', si_ref, {overwrite:true}), this._gc_req_post);
 	}
 
+	async upload_passthrough(elements, si_ref, option) {
+		const ds_passthrough = new stream.PassThrough();
+		const dp_upload = upload(ds_passthrough, this._endpoint_ref('elements', si_ref, {overwrite:true}), option);
+
+		ds_passthrough.write(/* syntax: json */ `{"elements":[`);
+		let i_element = 0;
+		for(const si_element of elements) {
+			ds_passthrough.write((i_element++? ',': '')+/* syntax: json */ `\n{"id":"${si_element}"}`);
+		}
+		ds_passthrough.end(/* syntax: json */ `\n]}`);
+
+		await once(ds_passthrough, 'finish');
+		await dp_upload;
+	}
 
 	/**
 	* Tag the current HEAD of the given ref as a basline
@@ -469,6 +540,7 @@ export class MmsProject {
 	async load(si_ref='master') {
 		const si_project = this._si_project;
 		const g_project = await this._fetch_project(si_ref);
+		console.log('Loaded mms project into memory');
 		const a_elements = g_project.elements;
 
 		// prep output hash
