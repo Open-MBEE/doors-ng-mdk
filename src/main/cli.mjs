@@ -485,7 +485,7 @@ y_yargs = y_yargs.command({
 			const h_elements_latest = await load_baseline(k_dng, {id:si_latest}, gc_action);
 
 			// apply deltas
-			if (g_version.major > 4 && !g_argv.dryRun) {
+			if(g_version.major >= 4 && !g_argv.dryRun) {
 				await k_mms.apply_deltas_with_stream(h_elements_latest, 'master');
 			} else if(!g_argv.dryRun) {
 				// load latest master from MMS
