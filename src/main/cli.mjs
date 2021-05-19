@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /* eslint-disable no-console, quote-props */
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import {URL, URLSearchParams} from 'url';
 import {fork} from 'child_process';
@@ -23,17 +22,11 @@ const {
 
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
-import pino from 'pino';
-const logger = pino();
-
-import chalk from 'chalk';
-const cherr = chalk.stderr;
 
 import {
 	file_exists,
 	hash,
 	sleep,
-	request,
 	fetch,
 	upload,
 } from '../util/io.mjs';

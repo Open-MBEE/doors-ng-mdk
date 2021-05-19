@@ -1,16 +1,9 @@
 /* eslint-disable no-unused-expressions, no-console, quote-props */
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
 import {URL, URLSearchParams} from 'url';
-import https from 'https';
 import stream from 'stream';
 import {once} from 'events';
 import util from 'util';
 const pipeline = util.promisify(stream.pipeline);
-
-import chalk from 'chalk';
-const cherr = chalk.stderr;
 
 import {
 	hash,
