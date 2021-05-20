@@ -37,6 +37,6 @@
     "pino": "^6.7.0",
     "rdfxml-streaming-parser": "^1.4.0",
     "stream-json": "^1.7.1",
-    "yargs": "^16.1.1"
+    "yargs": "^17.0.1"
   }
 }
