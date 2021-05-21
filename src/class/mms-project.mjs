@@ -1,5 +1,6 @@
 /* eslint-disable no-unused-expressions, no-console, quote-props */
 import {URL, URLSearchParams} from 'url';
+import fs from "fs";
 import stream from 'stream';
 import {once} from 'events';
 import util from 'util';
@@ -341,15 +342,22 @@ export class MmsProject {
 		// holder for the deltas
 		const result = {};
 
-		const ds_res = await request(this._endpoint_ref('elements', si_ref), {
+		const b_json = `./mms-buffer.${si_ref}.json`;
+		const file = fs.createWriteStream(b_json);
+		await request(this._endpoint_ref('elements', si_ref), {
 			...this._gc_req_get,
 			headers: {
 				...this._gc_req_get.headers,
 				Accept: 'application/x-ndjson',
 			},
+			function(response) {
+				response.pipe(file);
+			}
 		});
+		file.close();
+
 		await pipeline([
-			ds_res,
+			fs.createReadStream(b_json),
 			JsonStreamValues.withParser(),
 			new stream.Writable({
 				objectMode: true,
@@ -363,6 +371,7 @@ export class MmsProject {
 						}
 					}
 					compute_delta_inc(w_element, h_elements_new, result);
+					fk_write();
 				},
 			}),
 		]);
