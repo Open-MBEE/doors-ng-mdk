@@ -4,18 +4,11 @@ import fs from "fs";
 import stream from 'stream';
 import {once} from 'events';
 import util from 'util';
+import {fetch, hash, request, request2, upload,} from '../util/io.mjs';
+
+import {JsonStreamValues,} from '../util/stream-json.js';
+
 const pipeline = util.promisify(stream.pipeline);
-
-import {
-	hash,
-	request,
-	fetch,
-	upload,
-} from '../util/io.mjs';
-
-import {
-	JsonStreamValues,
-} from '../util/stream-json.js';
 
 // ref env
 const H_ENV = process.env;
@@ -110,8 +103,8 @@ function compute_delta(h_a, h_b) {
 
 function compute_delta_inc(element, h_b, diff) {
 	// initialize if not already
-	if(!diff.added) diff.added = [];
-	if(!diff.deleted) diff.delete = [];
+	diff.added = diff.added || [];
+	diff.delete = diff.delete || [];
 
 	if(element.id in h_b) {
 		// values differ; overwrite element
@@ -340,24 +333,33 @@ export class MmsProject {
 		delete h_elements_new[this._si_project];
 
 		// holder for the deltas
-		const result = {};
+		let result = {};
 
 		const b_json = `./mms-buffer.${si_ref}.json`;
 		const file = fs.createWriteStream(b_json);
-		await request(this._endpoint_ref('elements', si_ref), {
+		await request2(this._endpoint_ref('elements', si_ref), {
 			...this._gc_req_get,
 			headers: {
 				...this._gc_req_get.headers,
 				Accept: 'application/x-ndjson',
 			},
-			function(response) {
+			function (response) {
 				response.pipe(file);
 			}
 		});
 		file.close();
 
+		const mms_file = (filePath) => {
+			return new Promise((resolve, reject) => {
+				const fileReadStream = fs.createReadStream(filePath)
+				fileReadStream
+					.on('finish', resolve)
+					.on('error', reject)
+			})
+		};
+
 		await pipeline([
-			fs.createReadStream(b_json),
+			mms_file(b_json),
 			JsonStreamValues.withParser(),
 			new stream.Writable({
 				objectMode: true,
