@@ -39,11 +39,6 @@ export const request = (p_url, gc_request) => new Promise((fk_resolve) => {
 	(https.request(p_url, gc_request, fk_resolve)).end();
 });
 
-// simple direct https request with callback
-export const request2 = (p_url, gc_request, fn_resolve) => new Promise(() => {
-	(https.request(p_url, gc_request, fn_resolve)).end();
-});
-
 // fetch remote JSON
 export function fetch(p_url, gc_request, f_connected=null) {
 	let ds_req;

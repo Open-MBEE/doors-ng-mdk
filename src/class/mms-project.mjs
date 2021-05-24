@@ -1,10 +1,9 @@
 /* eslint-disable no-unused-expressions, no-console, quote-props */
 import {URL, URLSearchParams} from 'url';
-import fs from "fs";
 import stream from 'stream';
 import {once} from 'events';
 import util from 'util';
-import {fetch, hash, request, request2, upload,} from '../util/io.mjs';
+import {fetch, hash, request, upload,} from '../util/io.mjs';
 
 import {JsonStreamValues,} from '../util/stream-json.js';
 
