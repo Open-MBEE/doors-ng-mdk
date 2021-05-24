@@ -6,6 +6,7 @@ import util from 'util';
 import {fetch, hash, request, upload,} from '../util/io.mjs';
 
 import {JsonStreamValues,} from '../util/stream-json.js';
+import merge from 'lodash.merge';
 
 const pipeline = util.promisify(stream.pipeline);
 
@@ -361,7 +362,7 @@ export class MmsProject {
 							return;
 						}
 					}
-					result.append(compute_delta_inc(w_element, h_elements_new));
+					result = merge(result, compute_delta_inc(w_element, h_elements_new));
 					fk_write();
 				},
 			}),
