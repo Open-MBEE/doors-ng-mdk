@@ -373,6 +373,7 @@ export class MmsProject {
 			result.added.push(h_elements_new[e_key]);
 			delete h_elements_new[e_key];
 		}
+		h_elements_new = null;
 
 		console.warn(`Applying ${result.deleted.length} deletions and ${result.added.length} additions to ${si_ref}.`);
 
