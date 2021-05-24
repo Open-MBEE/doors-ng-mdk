@@ -101,21 +101,26 @@ function compute_delta(h_a, h_b) {
 	};
 }
 
-function compute_delta_inc(element, h_b, diff) {
+function compute_delta_inc(element, h_b) {
 	// initialize if not already
-	diff.added = diff.added || [];
-	diff.delete = diff.delete || [];
+	const a_added = [];
+	const a_deleted = [];
 
 	if(element.id in h_b) {
 		// values differ; overwrite element
 		if(JSON.stringify(canonicalize(element)) !== JSON.stringify(canonicalize(h_b[element.id]))) {
-			diff.added.push(h_b[element.id]);
+			a_added.push(h_b[element.id]);
 		}
 
 		delete h_b[element.id];
 	} else {
-		diff.deleted.push(element.id);
+		a_deleted.push(element.id);
 	}
+
+	return {
+		added: a_added,
+		deleted: a_deleted,
+	};
 }
 
 export class MmsProject {
@@ -335,31 +340,16 @@ export class MmsProject {
 		// holder for the deltas
 		let result = {};
 
-		const b_json = `./mms-buffer.${si_ref}.json`;
-		const file = fs.createWriteStream(b_json);
-		await request2(this._endpoint_ref('elements', si_ref), {
+		const ds_res = await request(this._endpoint_ref('elements', si_ref), {
 			...this._gc_req_get,
 			headers: {
 				...this._gc_req_get.headers,
 				Accept: 'application/x-ndjson',
 			},
-			function (response) {
-				response.pipe(file);
-			}
 		});
-		file.close();
-
-		const mms_file = (filePath) => {
-			return new Promise((resolve, reject) => {
-				const fileReadStream = fs.createReadStream(filePath)
-				fileReadStream
-					.on('finish', resolve)
-					.on('error', reject)
-			})
-		};
 
 		await pipeline([
-			mms_file(b_json),
+			ds_res,
 			JsonStreamValues.withParser(),
 			new stream.Writable({
 				objectMode: true,
@@ -372,7 +362,7 @@ export class MmsProject {
 							return;
 						}
 					}
-					compute_delta_inc(w_element, h_elements_new, result);
+					result.append(compute_delta_inc(w_element, h_elements_new));
 					fk_write();
 				},
 			}),
@@ -381,6 +371,7 @@ export class MmsProject {
 		// each remaining key in b
 		for(const e_key in h_elements_new) {
 			result.added.push(h_elements_new[e_key]);
+			delete h_elements_new[e_key];
 		}
 
 		console.warn(`Applying ${result.deleted.length} deletions and ${result.added.length} additions to ${si_ref}.`);
