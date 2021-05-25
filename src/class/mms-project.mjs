@@ -6,7 +6,6 @@ import util from 'util';
 import {fetch, hash, request, upload,} from '../util/io.mjs';
 
 import {JsonStreamValues,} from '../util/stream-json.js';
-import mergeWith from 'lodash.merge';
 
 const pipeline = util.promisify(stream.pipeline);
 
@@ -65,12 +64,6 @@ function canonicalize(z_a) {
 	}
 	else {
 		return z_a;
-	}
-}
-
-function customizer(objValue, srcValue) {
-	if (objValue.isArray()) {
-		return objValue.concat(srcValue);
 	}
 }
 
@@ -345,6 +338,8 @@ export class MmsProject {
 
 		// holder for the deltas
 		let result = {};
+		result.added = [];
+		result.deleted = [];
 
 		const ds_res = await request(this._endpoint_ref('elements', si_ref), {
 			...this._gc_req_get,
@@ -368,7 +363,9 @@ export class MmsProject {
 							return;
 						}
 					}
-					mergeWith(result, compute_delta_inc(w_element, h_elements_new), customizer);
+					let partial_delta = compute_delta_inc(w_element, h_elements_new);
+					result.added.concat(partial_delta.added);
+					result.deleted.concat(partial_delta.deleted);
 					fk_write();
 				},
 			}),
