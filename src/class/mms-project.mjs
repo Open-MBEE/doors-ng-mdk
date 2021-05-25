@@ -6,7 +6,7 @@ import util from 'util';
 import {fetch, hash, request, upload,} from '../util/io.mjs';
 
 import {JsonStreamValues,} from '../util/stream-json.js';
-import merge from 'lodash.merge';
+import mergeWith from 'lodash.merge';
 
 const pipeline = util.promisify(stream.pipeline);
 
@@ -65,6 +65,12 @@ function canonicalize(z_a) {
 	}
 	else {
 		return z_a;
+	}
+}
+
+function customizer(objValue, srcValue) {
+	if (objValue.isArray()) {
+		return objValue.concat(srcValue);
 	}
 }
 
@@ -362,7 +368,7 @@ export class MmsProject {
 							return;
 						}
 					}
-					result = merge(result, compute_delta_inc(w_element, h_elements_new));
+					mergeWith(result, compute_delta_inc(w_element, h_elements_new), customizer);
 					fk_write();
 				},
 			}),
