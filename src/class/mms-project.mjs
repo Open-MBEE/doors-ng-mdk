@@ -387,7 +387,18 @@ export class MmsProject {
 
 		// additions
 		if(result.added.length) {
-			await this.upload_passthrough(result.added, si_ref, this._gc_req_post);
+			const ds_add = new stream.PassThrough();
+			const dp_upload = upload(ds_add, this._endpoint_ref('elements', si_ref, {overwrite:true}), this._gc_req_post);
+
+			ds_add.write(/* syntax: json */ `{"elements":[`);
+			let i_element = 0;
+			for(const g_element of result.added) {
+				ds_add.write((i_element++? ',': '')+'\n'+JSON.stringify(g_element));
+			}
+			ds_add.end(/* syntax: json */ `\n]}`);
+
+			await once(ds_add, 'finish');
+			await dp_upload;
 		}
 
 		// return summary (number of elements deleted/added)
