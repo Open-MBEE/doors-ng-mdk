@@ -763,16 +763,14 @@ y_yargs = y_yargs.command({
 
 					// same ref
 					if(p_compartment_sel.startsWith(s_compartment_start)) {
-						const p_compartment_old = g_compartment.compartmentURI;
-
 						// compartment is already indexed, do not redo
-						if(p_compartment_old === p_compartment) {
+						if(p_compartment_sel === p_compartment) {
 							console.warn(`compartment '${p_compartment}' is already indexed.`);
 							process.exit(0);
 						}
 
 						// add to list
-						as_compartments_old.add(p_compartment_old);
+						as_compartments_old.add(p_compartment_sel);
 					}
 				}
 
@@ -987,6 +985,8 @@ y_yargs = y_yargs.command({
 						method: 'POST',
 						headers: h_headers_iqs,
 					});
+
+					console.log(`deleting <${p_compartment_old}> [${g_status.indices.join(', ')}]`);
 
 					// delete them
 					await upload(JSON.stringify({
