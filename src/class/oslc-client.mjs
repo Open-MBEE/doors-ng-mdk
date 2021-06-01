@@ -301,6 +301,7 @@ export class SimpleOslcClient {
 			headers: {
 				accept: 'application/rdf+xml, application/ld+json',
 				'oslc-core-version': '2.0',
+				...(this._p_context && {'vvc.configuration': this._p_context}),
 				...h_args.headers,
 			},
 		});
