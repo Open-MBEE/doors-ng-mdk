@@ -1,8 +1,6 @@
 import {URL} from 'url';
 
 import DataFactory from '@graphy/core.data.factory';
-import chalk from 'chalk';
-const cherr = chalk.stderr;
 
 import H_PREFIXES from '../common/prefixes.mjs';
 
