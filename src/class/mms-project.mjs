@@ -374,7 +374,7 @@ export class MmsProject {
 							return;
 						}
 					}
-					let partial_delta = compute_delta_inc(w_element, h_elements_new);
+					let partial_delta = compute_delta_inc(remove_meta(w_element), h_elements_new);
 					result.added = result.added.concat(partial_delta.added);
 					result.deleted = result.deleted.concat(partial_delta.deleted);
 					fk_write();
