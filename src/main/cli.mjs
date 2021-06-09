@@ -879,6 +879,9 @@ y_yargs = y_yargs.command({
 					// index the unloaded refs
 					for(const g_ref of as_refs_index) {
 						const a_commits_alt = h_alt_compartments[g_ref.id];
+						if (typeof a_commits_alt === 'undefined') {
+							continue;
+						}
 						let g_latest = a_commits_alt[0];
 
 						// figure out which is the latest commit for ref
