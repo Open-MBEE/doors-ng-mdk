@@ -770,6 +770,14 @@ y_yargs = y_yargs.command({
 					}
 				}
 
+				// fetch existing inmemory indexes
+				const g_body_inmem = await fetch(`${p_server}/api/inmemory-index.listModelCompartments`, {
+					method: 'GET',
+					headers: h_headers_iqs,
+				});
+
+				console.log(g_body_inmem);
+
 				console.warn(`loading new compartment into persistent index...`);
 				console.time('persistent');
 
@@ -912,20 +920,6 @@ y_yargs = y_yargs.command({
 					console.timeEnd('index-baselines');
 				}
 
-				// in-memory
-				if(g_indexes.memory) {
-					console.warn(`loading new compartment into in-memory index...`);
-					console.time('in-memory');
-
-					// load in-memory index
-					await upload(s_payload, `${p_server}/api/inmemory-index.loadModelCompartment`, {
-						method: 'POST',
-						headers: h_headers_iqs,
-					});
-
-					console.timeEnd('in-memory');
-				}
-
 				// elastic-search
 				if(g_indexes.elastic) {
 					console.warn(`loading new compartment into elastic-search index...`);
@@ -999,6 +993,20 @@ y_yargs = y_yargs.command({
 
 				console.timeEnd('delete');
 				console.warn('done');
+
+				// in-memory
+				if(g_indexes.memory) {
+					console.warn(`loading new compartment into in-memory index...`);
+					console.time('in-memory');
+
+					// load in-memory index
+					await upload(s_payload, `${p_server}/api/inmemory-index.loadModelCompartment`, {
+						method: 'POST',
+						headers: h_headers_iqs,
+					});
+
+					console.timeEnd('in-memory');
+				}
 
 				break;
 			}
