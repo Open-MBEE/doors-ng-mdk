@@ -51,6 +51,42 @@ export const H_PREFIXES = {
 	jazz_linktype: 'http://jazz.net/ns/dm/linktypes#',
 	jazz_shape: 'http://jazz.net/ns/process/shapes/',
 	jazz_config: 'http://jazz.net/ns/rm/dng/config#',
+
+	// DNG
+	dng_rm: 'https://cae-jazz.jpl.nasa.gov/rm/',
+	dng_type: 'https://cae-jazz.jpl.nasa.gov/rm/types/',
+	dng_resource: 'https://cae-jazz.jpl.nasa.gov/rm/resources/',
+	dng_pa: 'https://cae-jazz.jpl.nasa.gov/rm/process-authoring/',
+	dng_ppa: 'https://cae-jazz.jpl.nasa.gov/rm/process/project-areas/',
+	dng_team_area: 'https://cae-jazz.jpl.nasa.gov/rm/process/team-areas/',
+	dng_oslc: 'https://cae-jazz.jpl.nasa.gov/rm/oslc_rm/',
+	dng_process: 'https://cae-jazz.jpl.nasa.gov/rm/process/',
+	dng_folder: 'https://cae-jazz.jpl.nasa.gov/rm/folders/',
+	dng_service: 'https://cae-jazz.jpl.nasa.gov/rm/service/',
+	dng_acclist: 'https://cae-jazz.jpl.nasa.gov/rm/acclist#',
+	dng_acccntrl: 'https://cae-jazz.jpl.nasa.gov/rm/accessControl/',
+	dng_component: 'https://cae-jazz.jpl.nasa.gov/rm/cm/component/',
+	dng_baseline: 'https://cae-jazz.jpl.nasa.gov/rm/cm/baseline/',
+	dng_jts: 'https://cae-jazz.jpl.nasa.gov/jts/',
+	dng_user: 'https://cae-jazz.jpl.nasa.gov/jts/users/',
+
+	// MMS RDF
+	mms: 'https://opencae.jpl.nasa.gov/mms/rdf/ontology/',
+	'mms-ontology': 'https://opencae.jpl.nasa.gov/mms/rdf/ontology/',
+	'mms-graph': 'https://opencae.jpl.nasa.gov/mms/rdf/graph/',
+	'mms-object': 'https://opencae.jpl.nasa.gov/mms/rdf/object/',
+	'mms-property': 'https://opencae.jpl.nasa.gov/mms/rdf/property/',
+	'mms-derived-property': 'https://opencae.jpl.nasa.gov/mms/rdf/derived-property/',
+	'mms-class': 'https://opencae.jpl.nasa.gov/mms/rdf/class/',
+	'mms-element': 'https://opencae.jpl.nasa.gov/mms/rdf/element/',
+	'mms-artifact': 'https://opencae.jpl.nasa.gov/mms/rdf/artifact/',
+	'mms-index': 'https://opencae.jpl.nasa.gov/mms/rdf/index/',
+	'mms-shape': 'https://opencae.jpl.nasa.gov/mms/rdf/shape/',
+	'uml-model': 'https://www.omg.org/spec/UML/20161101/UML.xmi#',
+	'uml-model-dt': 'https://www.omg.org/spec/UML/20161101/UML.xmi#datatype/',
+	'uml-primitives': 'https://www.omg.org/spec/UML/20161101/PrimitiveTypes.xmi#',
+	'uml-class': 'https://opencae.jpl.nasa.gov/mms/rdf/uml-class/',
+	'uml-property': 'https://opencae.jpl.nasa.gov/mms/rdf/uml-property/',
 };
 
 export default H_PREFIXES;
