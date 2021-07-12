@@ -7,12 +7,19 @@ import {fork} from 'child_process';
 import {filename} from 'dirname-filename-esm';
 import {once} from 'events';
 import {pipeline} from 'stream';
+import H_PREFIXES from '../common/prefixes.mjs';
 
 import TurtleWriter from '@graphy/content.ttl.write';
+import TrigWriter from '@graphy/content.trig.write';
+import DataFactory from '@graphy/core.data.factory';
 
 import {
 	SimpleOslcClient,
 } from '../class/oslc-client.mjs';
+
+import {
+	SparqlEndpoint,
+} from '../util/sparql-endpoint.mjs';
 
 import StreamJson from '../util/stream-json.js';
 const {
@@ -59,6 +66,10 @@ const H_HEADERS_JSON = {
 	'Accept': 'application/json',
 	'Content-Type': 'application/json',
 };
+
+const P_DEFAULT_NAMED_GRAPH = 'https://opencae.jpl.nasa.gov/mms/rdf/graph/';
+
+const c1t = sc1 => DataFactory.c1(sc1, H_PREFIXES).terse(H_PREFIXES);
 
 // parse mms org/project string
 function project_dir(s_mms) {
@@ -231,6 +242,62 @@ const H_OPTIONS_SYNC = {
 	},
 };
 
+
+async function apply_malloc(g_argv) {
+	// reconstruct cli args to forward to child proc
+	let a_args = [g_argv.MMS_ORG_PROJECT_ID];
+	for(const [si_option, g_option] of Object.entries(H_OPTIONS_SYNC)) {
+		// skip malloc
+		if('malloc' === si_option) continue;
+
+		// normalize option label
+		const s_option_label = si_option.replace(/-(\w)/g, (_, s) => s.toUpperCase());
+
+		// option present in argv
+		if(s_option_label in g_argv) {
+			const s_option_flag = `--${si_option}`;
+
+			// append option
+			if('boolean' === g_option.type) {
+				a_args.push(s_option_flag);
+			}
+			// array of values, append all
+			else if('array' === g_option.type) {
+				a_args.push(...g_argv[s_option_label].flatMap(s => [s_option_flag, s]));
+			}
+			// non-boolean, append value
+			else {
+				a_args.push(...[s_option_flag, g_argv[s_option_label]]);
+			}
+		}
+	}
+
+	// spawn child proc
+	const u_sub = fork(filename(import.meta), ['sync', ...a_args], {
+		cwd: pd_root,
+		execArgv: ['--max-old-space-size='+g_argv.malloc],
+		stdio: 'inherit',
+	});
+
+	const xc_exit = await once(u_sub, 'close');
+	process.exit(xc_exit);
+}
+
+function check_dng_server() {
+	let p_server_dng = H_ENV.DNG_SERVER;
+	if(!p_server_dng) {
+		throw new Error(`Must provide a DNG server URL via env var 'DNG_SERVER'`);
+	}
+	p_server_dng = (new URL(p_server_dng)).origin;
+
+	// dng creds
+	if(!H_ENV.DNG_USER || !H_ENV.DNG_PASS) {
+		throw new Error(`Missing one of or both required environment variables: 'DNG_USER', 'DNG_PASS`);
+	}
+
+	return p_server_dng;
+}
+
 // 'sync' command
 y_yargs = y_yargs.command({
 	command: 'sync <MMS_ORG_PROJECT_ID>',
@@ -246,60 +313,13 @@ y_yargs = y_yargs.command({
 	handler: wrap_handler(async(g_argv) => {
 		// malloc
 		if(g_argv.malloc) {
-			// reconstruct cli args to forward to child proc
-			let a_args = [g_argv.MMS_ORG_PROJECT_ID];
-			for(const [si_option, g_option] of Object.entries(H_OPTIONS_SYNC)) {
-				// skip malloc
-				if('malloc' === si_option) continue;
-
-				// normalize option label
-				const s_option_label = si_option.replace(/-(\w)/g, (_, s) => s.toUpperCase());
-
-				// option present in argv
-				if(s_option_label in g_argv) {
-					const s_option_flag = `--${si_option}`;
-
-					// append option
-					if('boolean' === g_option.type) {
-						a_args.push(s_option_flag);
-					}
-					// array of values, append all
-					else if('array' === g_option.type) {
-						a_args.push(...g_argv[s_option_label].flatMap(s => [s_option_flag, s]));
-					}
-					// non-boolean, append value
-					else {
-						a_args.push(...[s_option_flag, g_argv[s_option_label]]);
-					}
-				}
-			}
-
-			// spawn child proc
-			const u_sub = fork(filename(import.meta), ['sync', ...a_args], {
-				cwd: pd_root,
-				execArgv: ['--max-old-space-size='+g_argv.malloc],
-				stdio: 'inherit',
-			});
-
-			const xc_exit = await once(u_sub, 'close');
-			process.exit(xc_exit);
+			return await apply_malloc();
 		}
 
 		const [pd_project, si_mms_project, si_mms_org] = project_dir(g_argv.MMS_ORG_PROJECT_ID);
 
 		// dng server
-		let p_server_dng = H_ENV.DNG_SERVER;
-		{
-			if(!p_server_dng) {
-				throw new Error(`Must provide a DNG server URL via env var 'DNG_SERVER'`);
-			}
-			p_server_dng = (new URL(p_server_dng)).origin;
-
-			// dng creds
-			if(!H_ENV.DNG_USER || !H_ENV.DNG_PASS) {
-				throw new Error(`Missing one of or both required environment variables: 'DNG_USER', 'DNG_PASS`);
-			}
-		}
+		let p_server_dng = check_dng_server();
 
 		// mkdir -p ./data/{org}/{project}/
 		fs.mkdirSync(pd_project, {recursive:true});
@@ -493,6 +513,110 @@ y_yargs = y_yargs.command({
 				const h_elements_mms = await k_mms.load('master');
 				await k_mms.apply_deltas(h_elements_mms, h_elements_latest, 'master');
 			}
+		}
+	}),
+});
+
+// 'extract' command
+y_yargs = y_yargs.command({
+	command: 'extract <PROJECT_LABEL>',
+	describe: 'Extract a DNG project as RDF',
+	builder: _yargs => _yargs
+		.usage('dng-mdk extract PROJECT_LABEL --project <DNG_PROJECT_NAME> [OPTIONS]')
+		.positional('PROJECT_LABEL', {
+			type: 'string',
+			describe: 'what to label the output project',
+		})
+		.options(H_OPTIONS_SYNC)
+		.help().version(false),
+	handler: wrap_handler(async(g_argv) => {
+		// malloc
+		if(g_argv.malloc) {
+			return await apply_malloc();
+		}
+
+		// dng server
+		let p_server_dng = check_dng_server();
+
+		// output path
+		const pd_project = path.join(pd_root, 'data', '_extract', g_argv.PROJECT_LABEL);
+
+		// mkdir
+		fs.mkdirSync(pd_project, {recursive:true});
+
+		// prep action config
+		const gc_action = {
+			dng_server: p_server_dng,
+			dng_project_name: g_argv.project,
+			dng_use_folders: g_argv.useFolders,
+			dng_auth_retries: g_argv.authRetries || 3,
+			dng_crawl_depth: g_argv.crawlDepth || 3,
+			dng_modules: g_argv.module || [],
+			dng_folders: g_argv.folder || [],
+			local_project_dir: pd_project,
+			https_requests: g_argv.requests,
+			https_sockets: g_argv.sockets,
+		};
+
+		// init dng project
+		const k_dng = new DngProject(gc_action);
+
+		// dng project info
+		Object.assign(gc_action, await k_dng.info());
+
+		// manual name
+		if(g_argv.name) gc_action.dng_project_name = g_argv.name;
+
+		{
+			const s_latest = (new Date()).toISOString();
+			const si_latest = s_latest.replace(/[^A-Z0-9-_.]/g, '-').replace(/\./g, '_');
+			const p_model = path.join(pd_project, si_latest+'.model.ttl');
+			const p_metadata = path.join(pd_project, si_latest+'.metadata.ttl');
+
+			const si_project = g_argv.PROJECT_LABEL;
+
+			// download dng project as RDF dataset to disk
+			await k_dng.export({
+				...gc_action,
+				commit_id: `${si_project}.${si_latest}`,
+				local_output: fs.createWriteStream(p_model),
+			});
+
+			const sc1_commit = `mms-object:Commit.${si_project}.${si_latest}`;
+
+			const sc1_metadata = `mms-graph:Metadata.${si_project}`;
+
+			const sc1_model = `mms-graph:Model.${si_project}.${si_latest}`;
+
+			const sc1_master = `mms-object:Ref.${g_argv.PROJECT_LABEL}.master`;
+
+			// produce metadata graph
+			const ds_writer = new TurtleWriter({
+				prefixes: H_PREFIXES,
+			});
+
+			ds_writer.pipe(fs.createWriteStream(p_metadata));
+
+			ds_writer.end({
+				type: 'c3',
+				value: {
+					[DataFactory.comment()]: `@graph ${DataFactory.c1(sc1_metadata, H_PREFIXES).verbose()}`,
+					[sc1_commit]: {
+						a: 'mms:Commit',
+						'mms:submitted': '^xsd:dateTime"'+s_latest,
+					},
+					[sc1_master]: {
+						a: 'mms:Ref',
+						'mms:name': '"master',
+						'mms:head': sc1_commit,
+					},
+					[`mms-object:Snapshot:${si_latest}`]: {
+						a: 'mms:Snapshot',
+						'mms:materializes': sc1_commit,
+						'mms:modelGraph': sc1_model,
+					},
+				},
+			});
 		}
 	}),
 });

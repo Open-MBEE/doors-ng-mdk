@@ -1,6 +1,7 @@
 import {URL, URLSearchParams} from 'url';
 import {once} from 'events';
 import TurtleWriter from '@graphy/content.ttl.write';
+import DataFactory from '@graphy/core.data.factory';
 import factory from '@graphy/core.data.factory';
 import pino from 'pino';
 import chalk from 'chalk';
@@ -254,6 +255,16 @@ export class DngProject {
 
 			ds_scribe.pipe(ds_out);
 
+			// commit id given
+			if(gc_export.commit_id) {
+				const sc1_model = `mms-graph:Model.${gc_export.commit_id}`;
+				ds_scribe.write({
+					type: 'c3',
+					value: {
+						[DataFactory.comment()]: `@graph ${DataFactory.c1(sc1_model, H_PREFIXES).verbose()}`,
+					},
+				});
+			}
 
 			// select query capabilities
 			const k_query_capabilities = kd_project.match(null, KT_RDF_TYPE, c1('oslc:QueryCapability', h_prefixes));
