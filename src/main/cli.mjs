@@ -313,7 +313,7 @@ y_yargs = y_yargs.command({
 	handler: wrap_handler(async(g_argv) => {
 		// malloc
 		if(g_argv.malloc) {
-			return await apply_malloc();
+			return await apply_malloc(g_argv);
 		}
 
 		const [pd_project, si_mms_project, si_mms_org] = project_dir(g_argv.MMS_ORG_PROJECT_ID);
@@ -532,7 +532,7 @@ y_yargs = y_yargs.command({
 	handler: wrap_handler(async(g_argv) => {
 		// malloc
 		if(g_argv.malloc) {
-			return await apply_malloc();
+			return await apply_malloc(g_argv);
 		}
 
 		// dng server
