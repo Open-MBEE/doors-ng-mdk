@@ -243,7 +243,7 @@ const H_OPTIONS_SYNC = {
 };
 
 
-async function apply_malloc(g_argv) {
+async function apply_malloc(g_argv, si_command) {
 	// reconstruct cli args to forward to child proc
 	let a_args = [g_argv.MMS_ORG_PROJECT_ID];
 	for(const [si_option, g_option] of Object.entries(H_OPTIONS_SYNC)) {
@@ -273,7 +273,7 @@ async function apply_malloc(g_argv) {
 	}
 
 	// spawn child proc
-	const u_sub = fork(filename(import.meta), ['sync', ...a_args], {
+	const u_sub = fork(filename(import.meta), [si_command, ...a_args], {
 		cwd: pd_root,
 		execArgv: ['--max-old-space-size='+g_argv.malloc],
 		stdio: 'inherit',
@@ -313,7 +313,7 @@ y_yargs = y_yargs.command({
 	handler: wrap_handler(async(g_argv) => {
 		// malloc
 		if(g_argv.malloc) {
-			return await apply_malloc(g_argv);
+			return await apply_malloc(g_argv, 'sync');
 		}
 
 		const [pd_project, si_mms_project, si_mms_org] = project_dir(g_argv.MMS_ORG_PROJECT_ID);
@@ -532,7 +532,7 @@ y_yargs = y_yargs.command({
 	handler: wrap_handler(async(g_argv) => {
 		// malloc
 		if(g_argv.malloc) {
-			return await apply_malloc(g_argv);
+			return await apply_malloc(g_argv, 'extract');
 		}
 
 		// dng server
