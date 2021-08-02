@@ -243,9 +243,9 @@ const H_OPTIONS_SYNC = {
 };
 
 
-async function apply_malloc(g_argv, si_command) {
+async function apply_malloc(g_argv, si_command, a_positionals) {
 	// reconstruct cli args to forward to child proc
-	let a_args = [g_argv.MMS_ORG_PROJECT_ID];
+	let a_args = [...a_positionals];
 	for(const [si_option, g_option] of Object.entries(H_OPTIONS_SYNC)) {
 		// skip malloc
 		if('malloc' === si_option) continue;
@@ -313,7 +313,7 @@ y_yargs = y_yargs.command({
 	handler: wrap_handler(async(g_argv) => {
 		// malloc
 		if(g_argv.malloc) {
-			return await apply_malloc(g_argv, 'sync');
+			return await apply_malloc(g_argv, 'sync', [g_argv.MMS_ORG_PROJECT_ID]);
 		}
 
 		const [pd_project, si_mms_project, si_mms_org] = project_dir(g_argv.MMS_ORG_PROJECT_ID);
@@ -532,7 +532,7 @@ y_yargs = y_yargs.command({
 	handler: wrap_handler(async(g_argv) => {
 		// malloc
 		if(g_argv.malloc) {
-			return await apply_malloc(g_argv, 'extract');
+			return await apply_malloc(g_argv, 'extract', [g_argv.PROJECT_LABEL]);
 		}
 
 		// dng server
