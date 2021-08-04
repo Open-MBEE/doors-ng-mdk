@@ -71,6 +71,14 @@ const P_DEFAULT_NAMED_GRAPH = 'https://opencae.jpl.nasa.gov/mms/rdf/graph/';
 
 const c1t = sc1 => DataFactory.c1(sc1, H_PREFIXES).terse(H_PREFIXES);
 
+function recreate_symlink(p_target, p_source) {
+	try {
+		fs.unlinkSync(p_source);
+	}
+	catch(e_ignore) {}
+	fs.symlinkSync(p_target, p_source);
+}
+
 // parse mms org/project string
 function project_dir(s_mms) {
 	const m_mms = /^([\w.-]+)\/([\w.-]+)$/.exec(s_mms);
@@ -181,14 +189,29 @@ function latest_commit_from(a_commits) {
 let y_yargs = yargs(hideBin(process.argv))
 	.usage('dng-mdk <command>');
 
-const H_OPTIONS_SYNC = {
+const H_OPTIONS_MMS = {
+	name: {
+		describe: 'what to name the project on MMS',
+		type: 'string',
+	},
+	reset: {
+		type: 'boolean',
+		describe: 'delete the project if it already exists on MMS and create a new project in its place ',
+	},
+	'mms-safety': {
+		type: 'boolean',
+		describe: 'enable a safety mechanism that attempts to use batching when getting all elements from MMS',
+	},
+	'dry-run': {
+		type: 'boolean',
+		describe: 'do not make any writes to MMS',
+	},
+};
+
+const H_OPTIONS_COMMON = {
 	project: {
 		describe: 'full name of the project on DNG, case-sensitive',
 		demandOption: true,
-		type: 'string',
-	},
-	name: {
-		describe: 'what to name the project on MMS',
 		type: 'string',
 	},
 	malloc: {
@@ -203,10 +226,6 @@ const H_OPTIONS_SYNC = {
 		describe: 'number of concurrent requests to open',
 		type: 'number',
 	},
-	reset: {
-		type: 'boolean',
-		describe: 'delete the project if it already exists on MMS and create a new project in its place ',
-	},
 	baselines: {
 		type: 'number',
 		describe: 'only sync the N latest baselines at most',
@@ -218,14 +237,6 @@ const H_OPTIONS_SYNC = {
 	'use-folders': {
 		type: 'boolean',
 		describe: `use the 'folders' workaround to fetch all artifacts for a large project`,
-	},
-	'mms-safety': {
-		type: 'boolean',
-		describe: 'enable a safety mechanism that attempts to use batching when getting all elements from MMS',
-	},
-	'dry-run': {
-		type: 'boolean',
-		describe: 'do not make any writes to MMS',
 	},
 	'crawl-depth': {
 		type: 'number',
@@ -242,6 +253,10 @@ const H_OPTIONS_SYNC = {
 	},
 };
 
+const H_OPTIONS_SYNC = {
+	...H_OPTIONS_MMS,
+	...H_OPTIONS_COMMON,
+};
 
 async function apply_malloc(g_argv, si_command, a_positionals) {
 	// reconstruct cli args to forward to child proc
@@ -527,7 +542,7 @@ y_yargs = y_yargs.command({
 			type: 'string',
 			describe: 'what to label the output project',
 		})
-		.options(H_OPTIONS_SYNC)
+		.options(H_OPTIONS_COMMON)
 		.help().version(false),
 	handler: wrap_handler(async(g_argv) => {
 		// malloc
@@ -617,6 +632,10 @@ y_yargs = y_yargs.command({
 					},
 				},
 			});
+
+			// create symlinks
+			recreate_symlink(p_model, path.join(pd_project, 'latest.model.ttl'));
+			recreate_symlink(p_metadata, path.join(pd_project, 'latest.metadata.ttl'));
 		}
 	}),
 });
