@@ -315,11 +315,9 @@ export class SimpleOslcClient {
 		const h_headers = ds_res.headers;
 		const n_status = ds_res.statusCode;
 
-		{
-			const h_headers_print = {...h_headers};
-			h_headers_print['set-cookie'] = h_headers_print['set-cookie'].map(s => s.replace(/(AUTH_TOKEN=)([^;]+)/g, '$1******'));
-			const s_res_headers = JSON.stringify(h_headers);
-		}
+		const h_headers_print = {...h_headers};
+		h_headers_print['set-cookie'] = h_headers_print['set-cookie'].map(s => s.replace(/(AUTH_TOKEN=)([^;]+)/g, '$1******'));
+		const s_res_headers = JSON.stringify(h_headers);
 
 		console.log(' # request headers:')
 		console.warn(s_req_headers);
