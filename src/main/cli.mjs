@@ -651,11 +651,18 @@ y_yargs = y_yargs.command({
 			type: 'string',
 			describe: 'URL to the resource',
 		})
-		.options({})
+		.options({
+			context: {
+				type: 'string',
+				describe: 'configuration context to use',
+			},
+		})
 		.help().version(false),
 	handler: wrap_handler(async(g_argv) => {
 		// simple client
-		const k_client = new SimpleOslcClient();
+		const k_client = new SimpleOslcClient({
+			dng_context: g_argv.context || '',
+		});
 
 		// update prefixes
 		const h_prefixes = k_client._h_prefixes;

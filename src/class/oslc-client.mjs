@@ -296,19 +296,37 @@ export class SimpleOslcClient {
 	*   resource has started downloading; readable stream of quad objects
 	*/
 	async fetch(pr_resource, h_args={}) {
+		const h_headers_req = {
+			Accept: 'application/rdf+xml', //, application/ld+json',
+			'OSLC-Core-Version': '2.0',
+			// ...(this._p_context && {'vvc.configuration': this._p_context}),
+			...(this._p_context && {'Configuration-Context': this._p_context}),
+			...h_args.headers,
+		};
+
+		const s_req_headers = JSON.stringify(h_headers_req);
+
 		const ds_res = await SimpleOslcClient$follow(this, pr_resource, {
 			...h_args,
-			headers: {
-				accept: 'application/rdf+xml, application/ld+json',
-				'oslc-core-version': '2.0',
-				...(this._p_context && {'vvc.configuration': this._p_context}),
-				...h_args.headers,
-			},
+			headers: h_headers_req,
 		});
 
 		// ref headers
 		const h_headers = ds_res.headers;
 		const n_status = ds_res.statusCode;
+
+		{
+			const h_headers_print = {...h_headers};
+			h_headers_print['set-cookie'] = h_headers_print['set-cookie'].replace(/(AUTH_TOKEN=)([^;]+)/g, '$1******');
+			const s_res_headers = JSON.stringify(h_headers);
+		}
+
+		console.log(' # request headers:')
+		console.warn(s_req_headers);
+		console.log('\n---------------------------------------------------\n')
+		console.log(' # response headers:')
+		console.warn(s_res_headers);
+		console.log('\n---------------------------------------------------\n')
 
 		// 2xx response
 		if(n_status >= 200 && n_status <= 299) {
@@ -317,6 +335,10 @@ export class SimpleOslcClient {
 			if(s_content_type) {
 				// RDF+XML
 				if(s_content_type.startsWith('application/rdf+xml')) {
+					console.log(' # response body:')
+					ds_res.on('data', s => process.stdout.write(s));
+					console.log('\n---------------------------------------------------\n')
+
 					// create parser
 					const ds_parser = new RdfXmlParser({
 						dataFactory: factory,
