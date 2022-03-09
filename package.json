@@ -30,7 +30,7 @@
     "@graphy/core.data.factory": "^4.3.3",
     "@graphy/memory.dataset.fast": "^4.3.3",
     "agentkeepalive": "^4.1.4",
-    "chalk": "^4.1.0",
+    "chalk": "^5.0.1",
     "cli-select": "^1.1.2",
     "cookie-manager": "0.0.19",
     "dirname-filename-esm": "^1.0.2",
