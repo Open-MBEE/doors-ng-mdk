@@ -34,7 +34,7 @@
     "cli-select": "^1.1.2",
     "cookie-manager": "0.0.19",
     "dirname-filename-esm": "^1.0.2",
-    "got": "^11.8.2",
+    "got": "^12.5.0",
     "jsonld-streaming-parser": "^2.2.0",
     "pino": "^6.7.0",
     "rdfxml-streaming-parser": "^1.4.0",
